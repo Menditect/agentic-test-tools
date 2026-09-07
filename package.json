@@ -7,6 +7,7 @@
     "update": "node scripts/sync-upstream.js",
     "update:skills": "node scripts/sync-skills.js",
     "update:mxcli": "node scripts/sync-mxcli.js",
-    "verify": "node scripts/verify-setup.js"
+    "verify": "node scripts/verify-setup.js",
+    "release": "node scripts/create-release.js"
   }
 }

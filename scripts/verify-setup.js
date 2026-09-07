@@ -25,12 +25,12 @@ function verifyMode(mode) {
             const res = JSON.parse(line);
             if (res.id === 1 && res.result && res.result.tools) {
               clearTimeout(timeout);
-              console.log(`✅ ${mode} MCP Server is responding correctly (${res.result.tools.length} tools found).`);
+              console.log(`[PASS] ${mode} MCP Server is responding correctly (${res.result.tools.length} tools found).`);
               proc.kill();
               return resolve(true);
             } else if (res.error) {
               clearTimeout(timeout);
-              console.error(`❌ ${mode} MCP Server returned an error:`, res.error.message);
+              console.error(`[FAIL] ${mode} MCP Server returned an error:`, res.error.message);
               proc.kill();
               return resolve(false);
             }

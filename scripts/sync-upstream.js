@@ -64,7 +64,7 @@ async function syncSkills() {
       } else {
         execSync(`cp -R "${sourceSkillsDir}/"* "${skillsDir}/"`, { stdio: 'ignore' });
       }
-      console.log('✅ Skills synced successfully into ./skills/');
+      console.log('Skills synced successfully into ./skills/');
     } else {
       console.log('AgenticTestSkills directory not found in repo.');
     }
@@ -115,7 +115,7 @@ async function syncMxcli() {
         console.log('Applied chmod +x to mxcli.');
       }
     }
-    console.log('✅ mxcli updated successfully in ./bin/');
+    console.log('mxcli updated successfully in ./bin/');
   } catch (err) {
     console.error('Failed to update mxcli:', err.message);
   }
