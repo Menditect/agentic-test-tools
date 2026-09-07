@@ -1,0 +1,27 @@
+# Endpoints and local variables
+.env
+mta_config.json
+
+# Downloaded Binaries and Upstream content
+bin/mxcli*
+!bin/.gitkeep
+skills/
+
+# Auto-Generated IDE Configurations (Prevent merge conflicts across team members)
+.vscode/mcp.json
+.cursor/mcp.json
+.claude/settings.json
+
+# Agent & AI State / Memory
+.cline/
+.cursor/tutor
+.cursor/state.json
+
+# Caches & Logs
+logs/
+.mxcli/
+node_modules/
+
+# OS Specific
+.DS_Store
+Thumbs.db

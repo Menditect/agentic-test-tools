@@ -1,0 +1,9 @@
+{
+  "mta_base_url": "https://mta-trial.mendixcloud.com",
+  "mcp_endpoint": "https://mta-trial.mendixcloud.com/primitivetools/mcp",
+  "plugin_mcp_url": "http://localhost:8081/plugin/mcp",
+  "plugin_mcp_token": "Bearer 1",
+  "model_source": "mxcli",
+  "mendix_project_dir": "",
+  "mendix_mpr_path": ""
+}

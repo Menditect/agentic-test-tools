@@ -1,0 +1,30 @@
+name: Verify Template Integrity
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  test-setup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Use Node.js 18
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+
+      - name: Verify Setup Script syntax
+        run: node -c scripts/setup.js
+
+      - name: Verify MTA Proxy syntax
+        run: node -c scripts/mta-proxy.js
+
+      - name: Verify Sync Upstream syntax
+        run: node -c scripts/sync-upstream.js
+
+      - name: Verify Verify Setup syntax
+        run: node -c scripts/verify-setup.js

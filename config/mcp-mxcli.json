@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "mta": {
+      "command": "node",
+      "args": ["${workspaceFolder}/scripts/mta-proxy.js", "mta"]
+    },
+    "mta_plugin": {
+      "command": "node",
+      "args": ["${workspaceFolder}/scripts/mta-proxy.js", "plugin"]
+    }
+  }
+}
