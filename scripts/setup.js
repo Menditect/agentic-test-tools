@@ -101,13 +101,13 @@ MENDIX_MPR_PATH="${mprPath}"
   console.log('Created .env');
   
   // Create IDE configs
-  generateIdeConfigs(mcpSource);
+  generateIdeConfigs(mcpSource, projectDir, mprPath, mtaBaseUrl);
   
   console.log('\nSetup complete! You can now run "npm run update" to fetch skills and mxcli.');
   rl.close();
 }
 
-function generateIdeConfigs(mcpSource) {
+function generateIdeConfigs(mcpSource, projectDir, mprPath, mtaBaseUrl) {
   // Read templates
   const mcpServers = {
     "mta": {
@@ -135,6 +135,26 @@ function generateIdeConfigs(mcpSource) {
   if (!fs.existsSync(vscodeDir)) fs.mkdirSync(vscodeDir, { recursive: true });
   fs.writeFileSync(path.join(vscodeDir, 'mcp.json'), JSON.stringify(mcpJson, null, 2));
   
+  // VS Code terminal environment settings (.vscode/settings.json)
+  const vscodeSettings = {
+    "terminal.integrated.env.windows": {
+      "MENDIX_PROJECT_PATH": projectDir || "",
+      "MENDIX_MPR_FILE": mprPath || "",
+      "MTA_BASE_URL": mtaBaseUrl || ""
+    },
+    "terminal.integrated.env.linux": {
+      "MENDIX_PROJECT_PATH": projectDir || "",
+      "MENDIX_MPR_FILE": mprPath || "",
+      "MTA_BASE_URL": mtaBaseUrl || ""
+    },
+    "terminal.integrated.env.osx": {
+      "MENDIX_PROJECT_PATH": projectDir || "",
+      "MENDIX_MPR_FILE": mprPath || "",
+      "MTA_BASE_URL": mtaBaseUrl || ""
+    }
+  };
+  fs.writeFileSync(path.join(vscodeDir, 'settings.json'), JSON.stringify(vscodeSettings, null, 2));
+
   // Cursor
   const cursorDir = path.join(rootDir, '.cursor');
   if (!fs.existsSync(cursorDir)) fs.mkdirSync(cursorDir, { recursive: true });
@@ -145,7 +165,7 @@ function generateIdeConfigs(mcpSource) {
   if (!fs.existsSync(claudeDir)) fs.mkdirSync(claudeDir, { recursive: true });
   fs.writeFileSync(path.join(claudeDir, 'settings.json'), JSON.stringify(mcpJson, null, 2));
   
-  console.log('Generated IDE MCP configurations in .vscode/, .cursor/, and .claude/');
+  console.log('Generated IDE configurations in .vscode/, .cursor/, and .claude/');
 }
 
 run();
