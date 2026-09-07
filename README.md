@@ -7,11 +7,50 @@ A plug-and-play **Customer Workspace Template** for building, designing, and run
 
 ---
 
+## 🧠 Architecture: Tools vs. Skills
+
+To understand how this workspace functions, it helps to understand the three distinct layers:
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│                        AI Agent (Cursor, Claude, Copilot)              │
+└───────────────┬───────────────────────────────┬────────────────────────┘
+                │                               │
+                ▼ (1) Reads "How to test"       ▼ (2) Calls "Tools"
+┌──────────────────────────────┐ ┌───────────────────────────────────────┐
+│     Agentic Test Skills      │ │       Menditect Agent Workspace       │
+│  (Menditect/agentic-skills)  │ │         (agentic-test-tools)          │
+├──────────────────────────────┤ ├───────────────────────────────────────┤
+│ • MTA Test Design Guidelines │ │ • MTA MCP Bridge (mta-proxy.js)       │
+│ • Step Sequencing Logic      │ │ • MTA Plugin MCP Bridge (localhost)   │
+│ • Assertion Strategies       │ │ • Mendix Model Wrappers (mxcli / SP)  │
+│ • Error Diagnosis Rules      │ │ • Multi-Agent IDE configs (.vscode/..)│
+└──────────────────────────────┘ └──────────────────┬────────────────────┘
+                                                    │
+                                                    ▼ (3) Inspects Model
+                                 ┌───────────────────────────────────────┐
+                                 │               mxcli                   │
+                                 │         (mendixlabs/mxcli)            │
+                                 ├───────────────────────────────────────┤
+                                 │ Reads Mendix .mpr (Entities, Pages,   │
+                                 │ Microflows) outside of Studio Pro     │
+                                 └───────────────────────────────────────┘
+```
+
+1. **The Tools Workspace (This Repository - `agentic-test-tools`)**:
+   Provides the runtime environment: the stdio-to-HTTP/SSE proxies, restart-resilience safeguards, environment variable management, and IDE configurations for your AI agents.
+2. **The Skills Knowledge Base ([`Menditect/agentic-test-skills`](https://github.com/Menditect/agentic-test-skills))**:
+   **The MCP tools alone are not enough.** The MTA MCP server exposes raw primitives (e.g. `CreateTestCase`, `CreateObjectActionTestStep`). Without Menditect's skills, an AI agent does not know *how* to construct valid MTA test cases, how to locate widgets on pages, or how to diagnose execution failures. These skills are automatically synchronized into `./skills/` from the upstream `agentic-test-skills` repository.
+3. **The Mendix Model Inspector ([`mendixlabs/mxcli`](https://github.com/mendixlabs/mxcli))**:
+   Developed by Mendix Labs, this CLI binary parses your local Mendix `.mpr` project file so the AI agent can inspect your domain model, microflows, and pages without needing Studio Pro open.
+
+---
+
 ## 🌟 Highlights
 
 - **⚡ 60-Second Setup Wizard**: Interactive CLI script auto-detects your Mendix `.mpr` project, configures environment endpoints, and generates ready-to-use IDE configurations.
 - **🛡️ Resilient MCP Proxy**: Automatically handles Mendix application restarts and offline states. If your Mendix app reboots during microflow edits, the proxy prevents your AI agent from crashing and reconnects automatically.
-- **🔄 Frictionless Upstream Updates**: Sync the latest Menditect testing skills and `mxcli` binaries on demand (`npm run update`) with zero Git merge conflicts.
+- **🔄 Granular Upstream Updates**: Separate update commands for **Menditect Skills** (frequent releases) and **Mendix Labs `mxcli`** (occasional releases).
 - **👥 Team Collaboration Ready**: Machine-specific states, downloaded binaries, and IDE configurations are pre-configured in `.gitignore`, allowing entire QA/development teams to collaborate on the same repository cleanly.
 - **🧩 Zero External Dependencies**: All proxy and tooling scripts use pure Node.js built-ins (`http`, `https`, `fs`, `readline`, `child_process`). No `npm install` or massive `node_modules` folders required!
 
@@ -56,7 +95,7 @@ The wizard will guide you through:
 
 The setup wizard automatically creates your local `.env`, `mta_config.json`, and dynamic IDE configurations in `.vscode/mcp.json`, `.cursor/mcp.json`, and `.claude/settings.json`.
 
-### Step 3: Fetch Upstream Skills and Binaries
+### Step 3: Fetch Skills and Binaries
 Download the official Menditect MTA skills and the platform-specific `mxcli` binary:
 
 ```bash
@@ -64,14 +103,26 @@ npm run update
 ```
 *(Windows PowerShell users can run `.\update.ps1`)*
 
-This populates `./skills/` with the latest testing skills and downloads `bin/mxcli` for your OS.
-
 ### Step 4: Verify Your Setup
 Run the built-in diagnostic tool to verify MCP server connectivity:
 
 ```bash
 npm run verify
 ```
+
+---
+
+## 🔄 Keeping Up to Date (Skills vs. mxcli)
+
+Because **Menditect Skills** and **Mendix Labs `mxcli`** are maintained by different organizations and released on different cadences, you can update them independently:
+
+| Component | Maintained By | Update Frequency | Command (npm) | Command (PowerShell) |
+| :--- | :--- | :--- | :--- | :--- |
+| **MTA Skills** (`./skills/`) | **Menditect B.V.** | **Frequent** (new patterns, MTA features) | `npm run update:skills` | `.\update-skills.ps1` |
+| **`mxcli` Binary** (`./bin/`) | **Mendix Labs** | **Periodic** (new Mendix version support) | `npm run update:mxcli` | `.\update-mxcli.ps1` |
+| **Everything** | Both | When updating entire workspace | `npm run update` | `.\update.ps1` |
+
+None of these updates will ever overwrite your custom test configurations, `.env`, or test scripts.
 
 ---
 
@@ -112,20 +163,6 @@ Once your agent is running with MTA tools loaded, you can ask it to perform test
 
 ---
 
-## 🔄 Keeping Skills & Binaries Up to Date
-
-Menditect regularly updates testing skills, heuristics, and schemas in `agentic-test-skills`, and Mendix Labs releases updates to `mxcli`.
-
-To update your workspace at any time without any git merge conflicts:
-
-```bash
-npm run update
-```
-
-This refreshes `./skills/` and `bin/` while leaving all your custom test scripts, configurations, and test cases untouched.
-
----
-
 ## 📁 Repository Structure
 
 ```
@@ -134,7 +171,7 @@ agentic-test-tools/
 ├── .cursor/                   # Cursor MCP configurations (gitignored)
 ├── .github/                   # Copilot rules and GitHub CI workflows
 ├── .vscode/                   # VS Code MCP configurations (gitignored)
-├── bin/                       # Auto-downloaded mxcli binary (gitignored)
+├── bin/                       # Auto-downloaded mxcli binary from mendixlabs (gitignored)
 ├── config/                    # Portable MCP configuration templates
 ├── docs/                      # In-depth setup, agent, and model guides
 │   ├── AGENT_COMPATIBILITY.md
@@ -143,14 +180,19 @@ agentic-test-tools/
 ├── scripts/
 │   ├── mta-proxy.js           # Zero-dependency stdio-to-HTTP/SSE bridge & restart protector
 │   ├── setup.js               # Interactive CLI setup wizard
-│   ├── sync-upstream.js       # Skills & mxcli automated updater
+│   ├── sync-skills.js         # Dedicated Menditect skills updater
+│   ├── sync-mxcli.js          # Dedicated Mendix Labs mxcli updater
+│   ├── sync-upstream.js       # Unified updater
 │   └── verify-setup.js        # MCP connectivity verification tool
 ├── skills/                    # Auto-synced Menditect skills (gitignored)
 ├── AGENTS.md                  # Master orchestrator rulebook for all AI agents
 ├── CLAUDE.md                  # Claude specific workspace directives
 ├── GEMINI.md                  # Gemini / Antigravity workspace directives
 ├── mxcli.bat / .ps1 / .sh     # Smart wrappers auto-injecting configured .mpr path
-├── setup.ps1 / update.ps1     # Native Windows PowerShell entrypoints
+├── setup.ps1                  # Native Windows setup entrypoint
+├── update.ps1                 # Native Windows full update entrypoint
+├── update-skills.ps1          # Native Windows skills-only update entrypoint
+├── update-mxcli.ps1           # Native Windows mxcli-only update entrypoint
 ├── package.json               # Runner aliases (npm run setup/update/verify)
 └── README.md                  # Workspace documentation
 ```

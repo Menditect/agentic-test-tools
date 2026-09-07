@@ -5,6 +5,8 @@
   "scripts": {
     "setup": "node scripts/setup.js",
     "update": "node scripts/sync-upstream.js",
+    "update:skills": "node scripts/sync-skills.js",
+    "update:mxcli": "node scripts/sync-mxcli.js",
     "verify": "node scripts/verify-setup.js"
   }
 }

@@ -64,7 +64,7 @@ async function syncSkills() {
       } else {
         execSync(`cp -R "${sourceSkillsDir}/"* "${skillsDir}/"`, { stdio: 'ignore' });
       }
-      console.log('Skills synced successfully.');
+      console.log('✅ Skills synced successfully into ./skills/');
     } else {
       console.log('AgenticTestSkills directory not found in repo.');
     }
@@ -80,7 +80,7 @@ async function syncSkills() {
 }
 
 async function syncMxcli() {
-  console.log('Fetching latest mxcli release...');
+  console.log('Fetching latest mxcli release from mendixlabs/mxcli...');
   try {
     const release = await apiRequest('https://api.github.com/repos/mendixlabs/mxcli/releases/latest');
     console.log(`Found mxcli ${release.tag_name}`);
@@ -115,15 +115,26 @@ async function syncMxcli() {
         console.log('Applied chmod +x to mxcli.');
       }
     }
-    console.log('mxcli updated successfully.');
+    console.log('✅ mxcli updated successfully in ./bin/');
   } catch (err) {
     console.error('Failed to update mxcli:', err.message);
   }
 }
 
 async function run() {
-  await syncSkills();
-  await syncMxcli();
+  const target = process.argv[2] || 'all';
+  if (target === 'skills') {
+    await syncSkills();
+  } else if (target === 'mxcli') {
+    await syncMxcli();
+  } else {
+    await syncSkills();
+    await syncMxcli();
+  }
 }
 
-run();
+module.exports = { syncSkills, syncMxcli };
+
+if (require.main === module) {
+  run();
+}

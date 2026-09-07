@@ -32,6 +32,8 @@ Welcome to your new Menditect Agent Workspace Template. This repository allows y
    ```
    This downloads the latest `mxcli` binary into `bin/` and the latest Menditect skills into `skills/`.
 
+   *(Tip: You can also update them separately: `npm run update:skills` or `npm run update:mxcli`)*
+
 ## Start Testing!
 Open this workspace in your favorite AI code editor (Cursor, VS Code + Copilot) or run a CLI agent (Claude Code). The agent will automatically discover the `.vscode/mcp.json` or `.cursor/mcp.json` configurations generated for you.
 
