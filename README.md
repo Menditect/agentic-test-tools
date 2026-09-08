@@ -92,10 +92,14 @@ The wizard will guide you through:
 - **MTA Base URL**: Enter your MTA URL (or press Enter to use the default MTA Trial).
 - **MTA Plugin URL & Token**: Defaults to `http://localhost:8081/plugin/mcp` and `Bearer 1`.
 - **Mendix Model Information Source**:
-  - `[1] mxcli` *(Recommended for headless/CLI/CI)*: Inspects `.mpr` directly without needing Studio Pro open. The wizard will prompt for your project directory and auto-detect your `.mpr` file.
+  - `[1] mxcli` *(Recommended for headless/CLI/CI)*: Inspects `.mpr` directly without needing Studio Pro open. The wizard prompts for your project directory and auto-detects your `.mpr` file.
   - `[2] Studio Pro MCP`: Connects live to Studio Pro 11.10+ built-in MCP server (`http://localhost:7782/mcp`).
+- **Application Name**: Automatically derived from your Mendix `.mpr` filename (e.g. `BillingApp.mpr` becomes `BillingApp`), with interactive confirmation.
 
-The setup wizard automatically creates your local `.env`, `mta_config.json`, and dynamic IDE configurations in `.vscode/mcp.json`, `.cursor/mcp.json`, and `.claude/settings.json`.
+The setup wizard automatically:
+1. Creates your local `.env` and `mta_config.json`.
+2. Generates dynamic IDE configurations in `.vscode/mcp.json`, `.vscode/settings.json`, `.cursor/mcp.json`, and `.claude/settings.json`.
+3. Appends and populates the **Menditect Architecture Setup** block across all agent directive files (`AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, and `.github/copilot-instructions.md`) with the active Application Name and MTA URL.
 
 ### Step 3: Fetch Skills and Binaries
 Download the official Menditect MTA skills and the platform-specific `mxcli` binary:

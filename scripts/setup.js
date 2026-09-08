@@ -75,8 +75,14 @@ async function run() {
     mcpSource = 'studiopro';
   }
   
+  const defaultAppName = mprPath
+    ? path.basename(mprPath, path.extname(mprPath))
+    : (projectDir ? path.basename(projectDir) : 'MyApp');
+  const appName = await ask('Application Name', defaultAppName);
+  
   // Write mta_config.json
   const config = {
+    application_name: appName,
     mta_base_url: mtaUrl,
     mcp_endpoint: mcpEndpoint,
     plugin_mcp_url: pluginUrl,
@@ -96,18 +102,22 @@ PLUGIN_MCP_URL="${pluginUrl}"
 PLUGIN_MCP_TOKEN="${pluginToken}"
 MENDIX_PROJECT_DIR="${projectDir}"
 MENDIX_MPR_PATH="${mprPath}"
+MENDIX_APP_NAME="${appName}"
 `;
   fs.writeFileSync(path.join(rootDir, '.env'), envContent);
   console.log('Created .env');
   
   // Create IDE configs
-  generateIdeConfigs(mcpSource, projectDir, mprPath, mtaBaseUrl);
+  generateIdeConfigs(mcpSource, projectDir, mprPath, mtaUrl, appName);
+  
+  // Update agent directives (AGENTS.md, CLAUDE.md, GEMINI.md, .github/copilot-instructions.md)
+  updateAgentDirectives(rootDir, appName, mtaUrl);
   
   console.log('\nSetup complete! You can now run "npm run update" to fetch skills and mxcli.');
   rl.close();
 }
 
-function generateIdeConfigs(mcpSource, projectDir, mprPath, mtaBaseUrl) {
+function generateIdeConfigs(mcpSource, projectDir, mprPath, mtaUrl, appName) {
   // Read templates
   const mcpServers = {
     "mta": {
@@ -140,17 +150,20 @@ function generateIdeConfigs(mcpSource, projectDir, mprPath, mtaBaseUrl) {
     "terminal.integrated.env.windows": {
       "MENDIX_PROJECT_PATH": projectDir || "",
       "MENDIX_MPR_FILE": mprPath || "",
-      "MTA_BASE_URL": mtaBaseUrl || ""
+      "MENDIX_APP_NAME": appName || "",
+      "MTA_BASE_URL": mtaUrl || ""
     },
     "terminal.integrated.env.linux": {
       "MENDIX_PROJECT_PATH": projectDir || "",
       "MENDIX_MPR_FILE": mprPath || "",
-      "MTA_BASE_URL": mtaBaseUrl || ""
+      "MENDIX_APP_NAME": appName || "",
+      "MTA_BASE_URL": mtaUrl || ""
     },
     "terminal.integrated.env.osx": {
       "MENDIX_PROJECT_PATH": projectDir || "",
       "MENDIX_MPR_FILE": mprPath || "",
-      "MTA_BASE_URL": mtaBaseUrl || ""
+      "MENDIX_APP_NAME": appName || "",
+      "MTA_BASE_URL": mtaUrl || ""
     }
   };
   fs.writeFileSync(path.join(vscodeDir, 'settings.json'), JSON.stringify(vscodeSettings, null, 2));
@@ -166,6 +179,44 @@ function generateIdeConfigs(mcpSource, projectDir, mprPath, mtaBaseUrl) {
   fs.writeFileSync(path.join(claudeDir, 'settings.json'), JSON.stringify(mcpJson, null, 2));
   
   console.log('Generated IDE configurations in .vscode/, .cursor/, and .claude/');
+}
+
+function getMenditectSetupBlock(appName, mtaUrl) {
+  return [
+    '# Menditect Architecture Setup',
+    '- **CRITICAL OPERATIONAL COMMAND:** Always execute tasks using the core rules defined in: [skills/AGENTS.md].',
+    '- **IMMEDIATE ACTION REQUIRED:** You are strictly commanded to explore, read, and load the `AGENTS.md` and context of the `skills/` directory before answering any user prompt.',
+    `- ** Application name is: ${appName} **`,
+    `- ** MTA Url: ${mtaUrl} **`
+  ].join('\n');
+}
+
+function updateDirectiveFile(filePath, appName, mtaUrl) {
+  if (!fs.existsSync(filePath)) return;
+  let content = fs.readFileSync(filePath, 'utf8');
+  const setupBlock = getMenditectSetupBlock(appName, mtaUrl);
+
+  const headerRegex = /# Menditect Architecture Setup[\s\S]*?(?=(?:\r?\n#[^#]|$))/;
+  if (headerRegex.test(content)) {
+    content = content.replace(headerRegex, setupBlock + '\n');
+  } else {
+    content = content.trimEnd() + '\n\n' + setupBlock + '\n';
+  }
+  fs.writeFileSync(filePath, content, 'utf8');
+}
+
+function updateAgentDirectives(rootDir, appName, mtaUrl) {
+  const targetFiles = [
+    path.join(rootDir, 'AGENTS.md'),
+    path.join(rootDir, 'CLAUDE.md'),
+    path.join(rootDir, 'GEMINI.md'),
+    path.join(rootDir, '.github', 'copilot-instructions.md')
+  ];
+
+  for (const file of targetFiles) {
+    updateDirectiveFile(file, appName, mtaUrl);
+  }
+  console.log('Configured Menditect Architecture Setup in AGENTS.md, CLAUDE.md, GEMINI.md, and .github/copilot-instructions.md');
 }
 
 run();
