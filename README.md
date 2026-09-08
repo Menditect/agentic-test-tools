@@ -63,10 +63,10 @@ To understand how this workspace functions, it helps to understand the three dis
 Before starting, ensure you have:
 1. **[Node.js](https://nodejs.org/) (v18+)** installed (required to run the setup script and local MCP proxies).
 2. **[Git](https://git-scm.com/)** installed (used to sync upstream testing skills).
-3. Access to an MTA instance:
-   - **MTA Trial**: `https://mta-trial.mendixcloud.com/primitivetools/mcp` (free and ready to use).
-   - **Your Organization's MTA Cloud/Private Instance**.
-4. A Mendix application under test (with the **MTA Plugin** installed, typically running on `http://localhost:8081`).
+3. Access to an MTA instance and an authentication token:
+   - **MTA URL**: `https://mta-trial.mendixcloud.com/primitivetools/mcp` (or your private/cloud MTA URL).
+   - **MTA Bearer Token**: An authorized user or API Bearer token (required by MTA MCP).
+4. A Mendix application under test (with the **MTA Plugin** installed, typically running on `http://localhost:8081`, with a configured Bearer token).
 
 ---
 
@@ -90,14 +90,15 @@ npm run setup
 
 The wizard will guide you through:
 - **MTA Base URL**: Enter your MTA URL (or press Enter to use the default MTA Trial).
-- **MTA Plugin URL & Token**: Defaults to `http://localhost:8081/plugin/mcp` and `Bearer 1`.
+- **MTA Bearer Token**: Enter your MTA Bearer token (required; raw tokens are automatically formatted with `Bearer `).
+- **MTA Plugin URL & Token**: Defaults to `http://localhost:8081/plugin/mcp` and `Bearer 1` (Bearer token recommended).
 - **Mendix Model Information Source**:
   - `[1] mxcli` *(Recommended for headless/CLI/CI)*: Inspects `.mpr` directly without needing Studio Pro open. The wizard prompts for your project directory and auto-detects your `.mpr` file.
   - `[2] Studio Pro MCP`: Connects live to Studio Pro 11.10+ built-in MCP server (`http://localhost:7782/mcp`).
 - **Application Name**: Automatically derived from your Mendix `.mpr` filename (e.g. `BillingApp.mpr` becomes `BillingApp`), with interactive confirmation.
 
 The setup wizard automatically:
-1. Creates your local `.env` and `mta_config.json`.
+1. Creates your local `.env` and `mta_config.json` with your configured endpoints and Bearer tokens.
 2. Generates dynamic IDE configurations in `.vscode/mcp.json`, `.vscode/settings.json`, `.cursor/mcp.json`, and `.claude/settings.json`.
 3. Appends and populates the **Menditect Architecture Setup** block across all agent directive files (`AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, and `.github/copilot-instructions.md`) with the active Application Name and MTA URL.
 

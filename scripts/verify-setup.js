@@ -1,11 +1,39 @@
+const fs = require('fs');
 const { spawn } = require('child_process');
 const path = require('path');
 
 const proxyPath = path.join(__dirname, 'mta-proxy.js');
+const configPath = path.join(__dirname, '..', 'mta_config.json');
+
+let config = {};
+try {
+  if (fs.existsSync(configPath)) {
+    config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+  }
+} catch (e) {}
+
+function checkTokenPreflight(mode) {
+  if (mode === 'mta') {
+    const hasToken = (config.mta_auth_header && config.mta_auth_header.trim()) || process.env.MTA_MCP_AUTH_HEADER || process.env.MTA_MCP_TOKEN;
+    if (!hasToken) {
+      console.warn('[WARN] No MTA Bearer token configured in mta_config.json or .env. MTA MCP requires authentication.');
+    } else {
+      console.log('[INFO] MTA Bearer token is configured.');
+    }
+  } else if (mode === 'plugin') {
+    const hasToken = (config.plugin_mcp_token && config.plugin_mcp_token.trim()) || process.env.PLUGIN_MCP_TOKEN;
+    if (!hasToken) {
+      console.warn('[WARN] No Plugin token configured in mta_config.json or .env (recommended: Bearer <token>).');
+    } else {
+      console.log('[INFO] Plugin token is configured.');
+    }
+  }
+}
 
 function verifyMode(mode) {
   return new Promise((resolve) => {
     console.log(`Verifying ${mode} MCP server...`);
+    checkTokenPreflight(mode);
     const proc = spawn('node', [proxyPath, mode], { stdio: ['pipe', 'pipe', 'inherit'] });
     
     let responseData = '';

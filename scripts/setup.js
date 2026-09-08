@@ -43,18 +43,45 @@ function findMpr(dir) {
   return null;
 }
 
+function formatBearerToken(token) {
+  if (!token) return '';
+  const trimmed = token.trim();
+  if (!trimmed) return '';
+  if (/^bearer\s+/i.test(trimmed)) {
+    return `Bearer ${trimmed.replace(/^bearer\s+/i, '')}`;
+  }
+  return `Bearer ${trimmed}`;
+}
+
 async function run() {
   console.log('--- Menditect Workspace Setup ---');
+
+  let existingConfig = {};
+  try {
+    const existingConfigPath = path.join(rootDir, 'mta_config.json');
+    if (fs.existsSync(existingConfigPath)) {
+      existingConfig = JSON.parse(fs.readFileSync(existingConfigPath, 'utf8'));
+    }
+  } catch (e) {}
   
-  const mtaUrl = await ask('MTA URL', 'https://mta-trial.mendixcloud.com');
+  const defaultMtaUrl = existingConfig.mta_base_url || 'https://mta-trial.mendixcloud.com';
+  const mtaUrl = await ask('MTA URL', defaultMtaUrl);
   const mcpEndpoint = mtaUrl.replace(/\/$/, '') + '/primitivetools/mcp';
+
+  const defaultMtaToken = existingConfig.mta_auth_header || '';
+  const rawMtaToken = await ask('MTA Bearer Token (e.g. Bearer <token> or raw token)', defaultMtaToken);
+  const mtaAuthHeader = formatBearerToken(rawMtaToken);
   
-  const pluginUrl = await ask('App under test Plugin URL', 'http://localhost:8081/plugin/mcp');
-  const pluginToken = await ask('Plugin Token (e.g. Bearer 1)', 'Bearer 1');
+  const defaultPluginUrl = existingConfig.plugin_mcp_url || 'http://localhost:8081/plugin/mcp';
+  const pluginUrl = await ask('App under test Plugin URL', defaultPluginUrl);
+
+  const defaultPluginToken = existingConfig.plugin_mcp_token || 'Bearer 1';
+  const rawPluginToken = await ask('App under test Plugin Token (Bearer token recommended)', defaultPluginToken);
+  const pluginToken = formatBearerToken(rawPluginToken);
   
   let modelSource = '';
   while (modelSource !== '1' && modelSource !== '2') {
-    modelSource = await ask('Model Source: [1] mxcli, [2] Studio Pro MCP', '1');
+    modelSource = await ask('Model Source: [1] mxcli, [2] Studio Pro MCP', existingConfig.model_source === 'studiopro' ? '2' : '1');
   }
   
   let projectDir = '';
@@ -63,7 +90,7 @@ async function run() {
   
   if (modelSource === '1') {
     mcpSource = 'mxcli';
-    projectDir = await ask('Mendix Project Directory', process.cwd());
+    projectDir = await ask('Mendix Project Directory', existingConfig.mendix_project_dir || process.cwd());
     const foundMpr = findMpr(projectDir);
     if (foundMpr) {
       console.log(`Found .mpr file: ${foundMpr}`);
@@ -77,7 +104,7 @@ async function run() {
   
   const defaultAppName = mprPath
     ? path.basename(mprPath, path.extname(mprPath))
-    : (projectDir ? path.basename(projectDir) : 'MyApp');
+    : (existingConfig.application_name || (projectDir ? path.basename(projectDir) : 'MyApp'));
   const appName = await ask('Application Name', defaultAppName);
   
   // Write mta_config.json
@@ -85,6 +112,7 @@ async function run() {
     application_name: appName,
     mta_base_url: mtaUrl,
     mcp_endpoint: mcpEndpoint,
+    mta_auth_header: mtaAuthHeader,
     plugin_mcp_url: pluginUrl,
     plugin_mcp_token: pluginToken,
     model_source: mcpSource,
@@ -97,7 +125,7 @@ async function run() {
   
   // Write .env
   const envContent = `MTA_MCP_ENDPOINT="${mcpEndpoint}"
-MTA_MCP_AUTH_HEADER=""
+MTA_MCP_AUTH_HEADER="${mtaAuthHeader}"
 PLUGIN_MCP_URL="${pluginUrl}"
 PLUGIN_MCP_TOKEN="${pluginToken}"
 MENDIX_PROJECT_DIR="${projectDir}"
@@ -108,7 +136,7 @@ MENDIX_APP_NAME="${appName}"
   console.log('Created .env');
   
   // Create IDE configs
-  generateIdeConfigs(mcpSource, projectDir, mprPath, mtaUrl, appName);
+  generateIdeConfigs(mcpSource, projectDir, mprPath, mtaUrl, appName, mtaAuthHeader, pluginToken);
   
   // Update agent directives (AGENTS.md, CLAUDE.md, GEMINI.md, .github/copilot-instructions.md)
   updateAgentDirectives(rootDir, appName, mtaUrl);
@@ -117,7 +145,7 @@ MENDIX_APP_NAME="${appName}"
   rl.close();
 }
 
-function generateIdeConfigs(mcpSource, projectDir, mprPath, mtaUrl, appName) {
+function generateIdeConfigs(mcpSource, projectDir, mprPath, mtaUrl, appName, mtaAuthHeader, pluginToken) {
   // Read templates
   const mcpServers = {
     "mta": {
@@ -151,19 +179,25 @@ function generateIdeConfigs(mcpSource, projectDir, mprPath, mtaUrl, appName) {
       "MENDIX_PROJECT_PATH": projectDir || "",
       "MENDIX_MPR_FILE": mprPath || "",
       "MENDIX_APP_NAME": appName || "",
-      "MTA_BASE_URL": mtaUrl || ""
+      "MTA_BASE_URL": mtaUrl || "",
+      "MTA_MCP_AUTH_HEADER": mtaAuthHeader || "",
+      "PLUGIN_MCP_TOKEN": pluginToken || ""
     },
     "terminal.integrated.env.linux": {
       "MENDIX_PROJECT_PATH": projectDir || "",
       "MENDIX_MPR_FILE": mprPath || "",
       "MENDIX_APP_NAME": appName || "",
-      "MTA_BASE_URL": mtaUrl || ""
+      "MTA_BASE_URL": mtaUrl || "",
+      "MTA_MCP_AUTH_HEADER": mtaAuthHeader || "",
+      "PLUGIN_MCP_TOKEN": pluginToken || ""
     },
     "terminal.integrated.env.osx": {
       "MENDIX_PROJECT_PATH": projectDir || "",
       "MENDIX_MPR_FILE": mprPath || "",
       "MENDIX_APP_NAME": appName || "",
-      "MTA_BASE_URL": mtaUrl || ""
+      "MTA_BASE_URL": mtaUrl || "",
+      "MTA_MCP_AUTH_HEADER": mtaAuthHeader || "",
+      "PLUGIN_MCP_TOKEN": pluginToken || ""
     }
   };
   fs.writeFileSync(path.join(vscodeDir, 'settings.json'), JSON.stringify(vscodeSettings, null, 2));
