@@ -27,6 +27,8 @@ function checkTokenPreflight(mode) {
     } else {
       console.log('[INFO] Plugin token is configured.');
     }
+  } else if (mode === 'studiopro') {
+    console.log('[INFO] Studio Pro MCP does not require authentication.');
   }
 }
 
@@ -91,8 +93,14 @@ async function run() {
   console.log();
   const pluginOk = await verifyMode('plugin');
   console.log();
+
+  let spOk = true;
+  if (config.model_source === 'studiopro') {
+    spOk = await verifyMode('studiopro');
+    console.log();
+  }
   
-  if (mtaOk && pluginOk) {
+  if (mtaOk && pluginOk && spOk) {
     console.log('Verification Complete. All MCP servers are responding correctly.');
   } else {
     console.log('Verification Failed. Please check your config and ensure the Mendix app is running if testing the plugin.');

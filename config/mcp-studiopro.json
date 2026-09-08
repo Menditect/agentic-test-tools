@@ -9,8 +9,8 @@
       "args": ["${workspaceFolder}/scripts/mta-proxy.js", "plugin"]
     },
     "StudioPro": {
-      "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-sse", "http://localhost:7782/mcp"]
+      "command": "node",
+      "args": ["${workspaceFolder}/scripts/mta-proxy.js", "studiopro"]
     }
   }
 }

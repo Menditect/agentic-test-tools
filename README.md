@@ -51,7 +51,7 @@ To understand how this workspace functions, it helps to understand the three dis
 ## Highlights
 
 - **60-Second Setup Wizard**: Interactive CLI script auto-detects your Mendix `.mpr` project, configures environment endpoints, and generates ready-to-use IDE configurations.
-- **Resilient MCP Proxy**: Automatically handles Mendix application restarts and offline states. If your Mendix app reboots during microflow edits, the proxy prevents your AI agent from crashing and reconnects automatically.
+- **Self-Healing MCP Proxy (`mta-proxy.js`)**: Automatically detects Mendix application and Studio Pro restarts. If your Mendix app or Studio Pro reboots or loses its session, the proxy transparently re-initializes the MCP handshake in the background, invalidates stale sessions, buffers pending tool calls with an extended restart window, and prevents AI agents from crashing or losing tool connections.
 - **Granular Upstream Updates**: Separate update commands for Menditect Skills (frequent releases) and Mendix Labs `mxcli` (occasional releases).
 - **Team Collaboration Ready**: Machine-specific states, downloaded binaries, and IDE configurations are pre-configured in `.gitignore`, allowing entire QA/development teams to collaborate on the same repository cleanly.
 - **Zero External Dependencies**: All proxy and tooling scripts use pure Node.js built-ins (`http`, `https`, `fs`, `readline`, `child_process`). No `npm install` or massive `node_modules` folders required.
@@ -189,7 +189,7 @@ agentic-test-tools/
 ├── releases/                  # Release notes per version
 ├── scripts/
 │   ├── create-release.js      # Release note scaffolding script
-│   ├── mta-proxy.js           # Zero-dependency stdio-to-HTTP/SSE bridge & restart protector
+│   ├── mta-proxy.js           # Self-healing stdio-to-HTTP/SSE bridge & session recovery manager
 │   ├── setup.js               # Interactive CLI setup wizard
 │   ├── sync-skills.js         # Dedicated Menditect skills updater
 │   ├── sync-mxcli.js          # Dedicated Mendix Labs mxcli updater

@@ -160,8 +160,8 @@ function generateIdeConfigs(mcpSource, projectDir, mprPath, mtaUrl, appName, mta
   
   if (mcpSource === 'studiopro') {
     mcpServers['StudioPro'] = {
-      "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-sse", "http://localhost:7782/mcp"]
+      "command": "node",
+      "args": ["${workspaceFolder}/scripts/mta-proxy.js", "studiopro"]
     };
     console.log('Note: Studio Pro MCP defaults to port 7782. Edit generated IDE configs if your port differs.');
   }
