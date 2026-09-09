@@ -89,6 +89,13 @@ function verifyMode(mode) {
 
 async function run() {
   console.log('--- Menditect Workspace Verification ---\n');
+  const wsType = config.workspace_type || 'clone_root';
+  const wsDir = config.workspace_dir || path.join(__dirname, '..');
+  const skillsDir = config.skills_dir || path.join(__dirname, '..', 'skills');
+  console.log(`Workspace Type:     ${wsType}`);
+  console.log(`Workspace Dir:      ${wsDir}`);
+  console.log(`Skills Destination: ${skillsDir}\n`);
+
   const mtaOk = await verifyMode('mta');
   console.log();
   const pluginOk = await verifyMode('plugin');

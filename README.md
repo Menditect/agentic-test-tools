@@ -5,6 +5,17 @@
 
 A plug-and-play Customer Workspace Template for building, designing, and running automated Mendix tests using AI Agents (such as Cursor, Claude Code, GitHub Copilot / Codex, Antigravity / Gemini, Cline) powered by Menditect Test Automation (MTA).
 
+> [!WARNING]
+> **Community & Experimental Tooling (Vibe-Engineered).**  
+> This project has been vibe-coded and developed in collaboration with AI coding assistants. It is provided strictly **"AS IS"** without warranties or conditions of any kind.
+> 
+> Menditect B.V. provides **no official support, SLAs, or guarantees** if tools or workflows fail to operate as expected. Neither Menditect B.V. nor its contributors shall be held liable for any damages, corrupted Mendix project files, data loss, or unintended actions resulting from the use of this repository (as set forth in the Apache License 2.0).
+> 
+> **Prudent Precautions:**
+> - Always work on a copy of your Mendix project or ensure your working tree is fully committed to version control (Git) before running agents.
+> - Never run `mxcli` against an `.mpr` project file while it is actively open in Mendix Studio Pro.
+> - Carefully review any AI-generated test cases, test steps, and execution plans prior to applying or executing them.
+
 ---
 
 ## Architecture: Tools vs. Skills
@@ -89,6 +100,10 @@ npm run setup
 *(Windows PowerShell users can alternatively run `.\setup.ps1`)*
 
 The wizard will guide you through:
+- **Workspace Location**:
+  - `[1] Dedicated Tools Workspace (Clone Root)`: Run your AI agent directly from the cloned `agentic-test-tools` directory.
+  - `[2] Direct Mendix Project Workspace`: Run your AI agent directly inside your Mendix project directory.
+  - `[3] Other Custom Directory`: Run your AI agent from an external directory or monorepo root.
 - **MTA Base URL**: Enter your MTA URL (or press Enter to use the default MTA Trial).
 - **MTA Bearer Token**: Enter your MTA Bearer token (required; raw tokens are automatically formatted with `Bearer `).
 - **MTA Plugin URL & Token**: Defaults to `http://localhost:8081/plugin/mcp` and `Bearer 1` (Bearer token recommended).
@@ -98,9 +113,82 @@ The wizard will guide you through:
 - **Application Name**: Automatically derived from your Mendix `.mpr` filename (e.g. `BillingApp.mpr` becomes `BillingApp`), with interactive confirmation.
 
 The setup wizard automatically:
-1. Creates your local `.env` and `mta_config.json` with your configured endpoints and Bearer tokens.
-2. Generates dynamic IDE configurations in `.vscode/mcp.json`, `.vscode/settings.json`, `.cursor/mcp.json`, and `.claude/settings.json`.
-3. Appends and populates the **Menditect Architecture Setup** block across all agent directive files (`AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, and `.github/copilot-instructions.md`) with the active Application Name and MTA URL.
+1. Creates your local `.env` and `mta_config.json` with your configured endpoints, tokens, and workspace targets.
+2. Generates and merges IDE configurations in `.vscode/mcp.json`, `.vscode/settings.json`, `.cursor/mcp.json`, and `.claude/settings.json` in your selected workspace without overwriting existing settings or permissions.
+3. Appends the **Menditect Architecture Setup** block to the project-level `AGENTS.md` (and other agent files), preserving existing rules.
+4. Deploys local `./mxcli` wrappers into your workspace so model inspection commands work out of the box.
+
+---
+
+### Workspace Modes: Choosing Where to Run Your Agent
+
+You can choose where your AI agent (VS Code, Cursor, Claude Code) opens and executes:
+
+| Consideration | Option 1: Tools Workspace (Clone Root) | Option 2: Mendix Project Workspace | Option 3: Custom Directory |
+| :--- | :--- | :--- | :--- |
+| **Active IDE Workspace** | `agentic-test-tools` folder | Local Mendix Project folder | Any custom directory |
+| **Mendix Project Code** | Accessed via `mxcli` / relative paths | Directly open in IDE explorer | Depends on directory |
+| **MTA Skills Location** | `<clone_root>/skills/` | Module skills or `./skills/` | `<custom>/skills/` |
+| **Mendix 11.12+ Module Support** | N/A | Integrates with `skillssource/_modules` (requires Mendix 11.12+) | N/A |
+| **Local ./mxcli Runner** | Root `./mxcli` | Local `./mxcli` in Mendix project | Local `./mxcli` in custom dir |
+| **Execution Plans Folder** | `<clone_root>/menditect-output/execution-plans/` (+ `archive/`) | `<mendix_project>/menditect-output/execution-plans/` (+ `archive/`) | `<custom>/menditect-output/execution-plans/` (+ `archive/`) |
+| **Git Repository Impact** | Zero impact on Mendix repo | Files tracked & committed in Mendix repo | Isolated to custom dir |
+
+#### Exact File Placement by Option
+
+| File / Directory | Option 1 (Tools Clone Root) | Option 2 (Mendix Project Folder) | Option 3 (Custom Directory) |
+| :--- | :--- | :--- | :--- |
+| **MTA Skills** | `agentic-test-tools/skills/` | `skillssource/_modules/menditect_agentictestskills/` (if Mendix 11.12+ and module installed) or `skills/` | `<custom>/skills/` |
+| **Execution Plans** | `agentic-test-tools/menditect-output/execution-plans/` | `<mendix_project>/menditect-output/execution-plans/` | `<custom>/menditect-output/execution-plans/` |
+| **Archived Plans** | `agentic-test-tools/menditect-output/execution-plans/archive/` | `<mendix_project>/menditect-output/execution-plans/archive/` | `<custom>/menditect-output/execution-plans/archive/` |
+| **Agent Directives** | `AGENTS.md`, `CLAUDE.md`, `GEMINI.md` | Appends Menditect block to existing `AGENTS.md` (or creates it) | Appends or creates `AGENTS.md` |
+| **IDE MCP Configs** | `.vscode/mcp.json`, `.cursor/mcp.json` | Merged into `<mendix_project>/.vscode/` and `.cursor/` | Merged into `<custom>/.vscode/` and `.cursor/` |
+| **Tool Permissions** | `.claude/settings.json` | Merged into `<mendix_project>/.claude/settings.json` (preserves existing permissions) | Merged into `<custom>/.claude/settings.json` |
+| **Local Runners** | `mxcli.bat`, `mxcli` | Deploys local `mxcli.bat` & `./mxcli` into `<mendix_project>/` | Deploys local runners into `<custom>/` |
+| **Environment / Config** | `mta_config.json`, `.env` | `mta_config.json`, `.env` placed in `<mendix_project>/` | Placed in `<custom>/` |
+
+#### Important Notice for Mendix Git Repositories (Option 2)
+Typical Mendix projects maintain their own version control repository (Git, GitHub, GitLab, or Mendix Team Server).
+When you choose **Option 2 (Direct Mendix Project Workspace)**:
+- All generated and updated files (skills, local `./mxcli` wrappers, execution plan directories, and IDE configurations) reside inside your Mendix project folder.
+- These files will be detected by `git status` in your Mendix project.
+- Committing these files allows your entire development team to share testing skills, execution plans, and MCP agent configurations directly with the app.
+- If you prefer not to commit machine-specific files, you can add `.env` or IDE configuration folders to your Mendix project's `.gitignore`.
+
+#### Mendix Version Requirement for Module-Level Skills
+Module-level skills (`skillssource/_modules/menditect_agentictestskills`) require **Mendix 11.12 or higher**:
+- The setup wizard automatically inspects the `.mpr` header to determine your Mendix Studio Pro version.
+- **Mendix 11.12+**: If the `Menditect_AgenticTestSkills` Marketplace module is detected, skills are placed directly into `skillssource/_modules/menditect_agentictestskills/`.
+- **Mendix < 11.12** (or if the Marketplace module is not installed): Skills are safely placed as project-level skills in `<mendix_project>/skills/`, ensuring full compatibility with earlier Mendix versions.
+
+#### Option 1: Dedicated Tools Workspace (Clone Root)
+- **Description**: Open `agentic-test-tools` in your IDE. This repository acts as a centralized testing station that controls testing against your Mendix app.
+- **Pros**:
+  - Keeps your Mendix project repository 100% clean from external agent scripts, proxy processes, and IDE config files.
+  - Acts as a multi-project cockpit: test different Mendix applications simply by changing `mta_config.json`.
+  - Isolate skills and tool dependencies from your application version control.
+- **Cons**:
+  - Requires maintaining two folders (your Mendix app and this tools repository).
+  - Agent edits to project files require explicit relative or absolute file paths.
+
+#### Option 2: Direct Mendix Project Workspace (Mendix Project Folder)
+- **Description**: Open your Mendix project root folder directly in your IDE (VS Code, Cursor, or Claude Code). The setup wizard configures the Mendix project workspace with the required MCP proxies, skills, and execution plan directories.
+- **Pros**:
+  - Seamless developer workflow: the AI agent has direct access to all project resources, domain model files, Java actions, and JavaScript widgets.
+  - Native Mendix 11 `skillssource` Integration: When running Mendix 11.12+ with the `Menditect_AgenticTestSkills` Marketplace module, skills are installed directly into `skillssource/_modules/menditect_agentictestskills/` and versioned with your project.
+  - Zero-effort `./mxcli` execution: local `./mxcli.bat` and `./mxcli` runners are deployed into your Mendix project root.
+  - Safe merging: existing `.claude/settings.json` permissions and `.vscode/settings.json` properties are preserved.
+  - Execution plan traceability: test plans and archives are stored directly alongside the project.
+- **Cons**:
+  - Adds files (`.vscode/mcp.json`, `AGENTS.md`, `./mxcli`) to your Mendix project repository.
+  - The `agentic-test-tools` repository must remain cloned on disk because the IDE connects to its proxy.
+
+#### Option 3: Other Custom Directory
+- **Description**: Specify an external directory, such as a parent folder containing both the Mendix project and test suites, or a monorepo root.
+- **Pros**:
+  - Maximum flexibility for complex team setups, monorepos, or automated CI runners.
+- **Cons**:
+  - Requires manual path verification.
 
 ### Step 3: Fetch Skills and Binaries
 Download the official Menditect MTA skills and the platform-specific `mxcli` binary:
@@ -214,6 +302,17 @@ agentic-test-tools/
 ## Release Notes
 
 Release notes and upgrade instructions are tracked in [RELEASES.md](RELEASES.md).
+
+---
+
+## Disclaimer & Support Policy
+
+This repository, its helper scripts, proxies, and multi-agent configurations are **experimental and vibe-engineered** using AI coding assistants. 
+
+- **No Official Support:** Menditect B.V. does not provide technical support, SLAs, bug fixes, or consulting services for this template or its scripts. If you encounter issues, you are encouraged to debug, modify, and contribute improvements back to the community repository.
+- **As-Is Provision:** In accordance with Sections 7 and 8 of the Apache License 2.0, the software is provided on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+- **Limitation of Liability:** In no event and under no legal theory shall Menditect B.V. or any contributor be liable for any direct, indirect, special, incidental, or consequential damages (including project file corruption, lost data, work stoppage, or system downtime).
+- **Safe Working Practices:** AI agents can execute command-line tools and modify files. Always ensure your Mendix projects are committed to Git so that any unwanted modifications can be reverted instantly.
 
 ---
 

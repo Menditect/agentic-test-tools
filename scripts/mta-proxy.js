@@ -9,9 +9,17 @@ const mode = (process.argv[2] || 'mta').toLowerCase();
 // Read configuration
 let config = {};
 try {
-  const configPath = path.join(__dirname, '..', 'mta_config.json');
-  if (fs.existsSync(configPath)) {
-    config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+  const possiblePaths = [
+    process.env.MTA_CONFIG_PATH,
+    path.join(__dirname, '..', 'mta_config.json'),
+    path.join(process.cwd(), 'mta_config.json')
+  ].filter(Boolean);
+
+  for (const p of possiblePaths) {
+    if (fs.existsSync(p)) {
+      config = JSON.parse(fs.readFileSync(p, 'utf8'));
+      break;
+    }
   }
 } catch (e) {
   // Ignore missing or malformed config
