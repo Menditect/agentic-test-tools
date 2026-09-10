@@ -104,18 +104,24 @@ The wizard will guide you through:
   - `[1] Dedicated Tools Workspace (Clone Root)`: Run your AI agent directly from the cloned `agentic-test-tools` directory.
   - `[2] Direct Mendix Project Workspace`: Run your AI agent directly inside your Mendix project directory.
   - `[3] Other Custom Directory`: Run your AI agent from an external directory or monorepo root.
-- **MTA Base URL**: Enter your MTA URL (or press Enter to use the default MTA Trial).
+- **Automated Mendix Settings Discovery via `mxcli`**:
+  - When a `.mpr` project is detected, the setup wizard automatically inspects the model settings to discover any pre-configured `MtaPluginModule.ApplicationInstanceToken` constants across your Mendix Studio Pro configurations (e.g. `local`, `test`, `cloud`), as well as connection URLs and plugin tokens.
+  - If discovered, you can confirm all instances in 1 click and designate your active default instance for test execution.
+- **MTA Application Instance Tokens (`ExecuteTest`)**:
+  - Running tests via MTA's `ExecuteTest` requires an `ApplicationInstanceToken` (UUID provided by MTA Portal > Application > Application Instances).
+  - If not discovered from the Mendix model, the wizard prompts for how many instances you have (minimum 1) and asks for each instance's name and token, setting `MTA_APP_INSTANCE_TOKEN`.
+- **MTA Base URL**: Enter your MTA URL (pre-filled with discovered URL or defaults to MTA Trial).
 - **MTA Bearer Token**: Enter your MTA Bearer token (required; raw tokens are automatically formatted with `Bearer `).
-- **MTA Plugin URL & Token**: Defaults to `http://localhost:8081/plugin/mcp` and `Bearer 1` (Bearer token recommended).
+- **MTA Plugin URL & Token**: Pre-filled with discovered settings or defaults to `http://localhost:8081/plugin/mcp` and `Bearer 1` (Bearer token recommended).
 - **Mendix Model Information Source**:
   - `[1] mxcli` *(Recommended for headless/CLI/CI)*: Inspects `.mpr` directly without needing Studio Pro open. The wizard prompts for your project directory and auto-detects your `.mpr` file.
   - `[2] Studio Pro MCP`: Connects live to Studio Pro 11.10+ built-in MCP server (`http://localhost:7782/mcp`).
 - **Application Name**: Automatically derived from your Mendix `.mpr` filename (e.g. `BillingApp.mpr` becomes `BillingApp`), with interactive confirmation.
 
 The setup wizard automatically:
-1. Creates your local `.env` and `mta_config.json` with your configured endpoints, tokens, and workspace targets.
+1. Creates your local `.env` and `mta_config.json` with your configured endpoints, tokens, app instances, and workspace targets.
 2. Generates and merges IDE configurations in `.vscode/mcp.json`, `.vscode/settings.json`, `.cursor/mcp.json`, and `.claude/settings.json` in your selected workspace without overwriting existing settings or permissions.
-3. Appends the **Menditect Architecture Setup** block to the project-level `AGENTS.md` (and other agent files), preserving existing rules.
+3. Appends the **Menditect Architecture Setup** block (including the application instances mapping) to the project-level `AGENTS.md` (and other agent files), preserving existing rules.
 4. Deploys local `./mxcli` wrappers into your workspace so model inspection commands work out of the box.
 
 ---

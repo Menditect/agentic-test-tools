@@ -32,6 +32,36 @@ function checkTokenPreflight(mode) {
   }
 }
 
+function checkAppInstances() {
+  const instances = config.app_instances || [];
+  const defaultToken = config.default_app_instance_token || process.env.MTA_APP_INSTANCE_TOKEN;
+  if (!instances.length && !defaultToken) {
+    console.warn('[WARN] No MTA App Instance Tokens configured in mta_config.json or .env. ExecuteTest will require manual token input.');
+    return;
+  }
+  const defaultName = config.default_app_instance || (instances[0] ? instances[0].name : 'default');
+  console.log(`[INFO] Configured ${instances.length || 1} MTA App Instance Token(s). Active default: [${defaultName}].`);
+
+  if (config.mendix_mpr_path && fs.existsSync(config.mendix_mpr_path) && defaultToken) {
+    const toolsRootDir = path.join(__dirname, '..');
+    const mxcliBin = path.join(toolsRootDir, 'bin', process.platform === 'win32' ? 'mxcli.exe' : 'mxcli');
+    if (fs.existsSync(mxcliBin)) {
+      try {
+        const out = require('child_process').execSync(`"${mxcliBin}" describe settings Settings -p "${config.mendix_mpr_path}"`, {
+          encoding: 'utf8',
+          stdio: ['pipe', 'pipe', 'ignore'],
+          timeout: 10000
+        });
+        if (out.includes(defaultToken)) {
+          console.log('[INFO] Active App Instance Token matches a configuration in the Mendix project model.');
+        } else {
+          console.log('[NOTICE] Active App Instance Token was not found in the Mendix project settings (it may be an external or custom instance).');
+        }
+      } catch (e) {}
+    }
+  }
+}
+
 function verifyMode(mode) {
   return new Promise((resolve) => {
     console.log(`Verifying ${mode} MCP server...`);
@@ -95,6 +125,9 @@ async function run() {
   console.log(`Workspace Type:     ${wsType}`);
   console.log(`Workspace Dir:      ${wsDir}`);
   console.log(`Skills Destination: ${skillsDir}\n`);
+
+  checkAppInstances();
+  console.log();
 
   const mtaOk = await verifyMode('mta');
   console.log();

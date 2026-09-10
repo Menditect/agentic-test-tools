@@ -1,19 +1,31 @@
 const fs = require('fs');
 const path = require('path');
 const readline = require('readline');
+const { execSync } = require('child_process');
 
-const rl = readline.createInterface({
-  input: process.stdin,
-  output: process.stdout
-});
+let rl = null;
+
+function getReadline() {
+  if (!rl) {
+    rl = readline.createInterface({
+      input: process.stdin,
+      output: process.stdout
+    });
+  }
+  return rl;
+}
 
 const toolsRootDir = path.join(__dirname, '..');
 
 function ask(question, defaultVal) {
   return new Promise(resolve => {
+    const activeRl = getReadline();
+    if (activeRl.closed) {
+      return resolve(defaultVal !== undefined ? String(defaultVal) : '');
+    }
     const promptStr = defaultVal !== undefined && defaultVal !== '' ? `${question} [${defaultVal}]: ` : `${question}: `;
-    rl.question(promptStr, answer => {
-      resolve(answer.trim() || defaultVal || '');
+    activeRl.question(promptStr, answer => {
+      resolve(answer.trim() || (defaultVal !== undefined ? String(defaultVal) : ''));
     });
   });
 }
@@ -83,6 +95,82 @@ function detectMendixModule(mendixDir) {
   return null;
 }
 
+function inspectMendixMtaSettings(mprPath) {
+  if (!mprPath || !fs.existsSync(mprPath)) return null;
+
+  let mxcliBin = null;
+  const candidates = [
+    path.join(toolsRootDir, 'bin', process.platform === 'win32' ? 'mxcli.exe' : 'mxcli'),
+    path.join(path.dirname(mprPath), 'bin', process.platform === 'win32' ? 'mxcli.exe' : 'mxcli')
+  ];
+  for (const c of candidates) {
+    if (fs.existsSync(c)) {
+      mxcliBin = c;
+      break;
+    }
+  }
+  if (!mxcliBin) {
+    try {
+      execSync('mxcli --version', { stdio: 'ignore' });
+      mxcliBin = 'mxcli';
+    } catch (e) {
+      return null;
+    }
+  }
+
+  try {
+    const output = execSync(`"${mxcliBin}" describe settings Settings -p "${mprPath}"`, {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+      timeout: 25000
+    });
+
+    const instances = [];
+    const seenNames = new Set();
+    const tokenRegex = /alter settings constant '([^']+)'\s+value\s+'([^']*)'\s+in configuration '([^']+)';/g;
+    let match;
+    while ((match = tokenRegex.exec(output)) !== null) {
+      const [_, constantName, value, configName] = match;
+      if (constantName.includes('ApplicationInstanceToken') && value && value.trim()) {
+        const cleanVal = value.trim();
+        if (!seenNames.has(configName)) {
+          seenNames.add(configName);
+          instances.push({ name: configName, token: cleanVal });
+        }
+      }
+    }
+
+    let mtaUrl = null;
+    const urlMatch = output.match(/alter settings constant 'MtaPluginModule\.MTAConnectionUrl'\s+value\s+'([^']*)'/);
+    if (urlMatch && urlMatch[1] && urlMatch[1].trim()) {
+      let rawUrl = urlMatch[1].trim();
+      rawUrl = rawUrl.replace(/^wss:\/\//i, 'https://').replace(/^ws:\/\//i, 'http://');
+      mtaUrl = rawUrl;
+    }
+
+    let pluginToken = null;
+    const pluginTokenMatch = output.match(/alter settings constant 'MtaPluginModule\.McpServerAccessToken'\s+value\s+'([^']*)'/);
+    if (pluginTokenMatch && pluginTokenMatch[1] && pluginTokenMatch[1].trim()) {
+      pluginToken = formatBearerToken(pluginTokenMatch[1].trim());
+    }
+
+    let pluginPort = null;
+    const portMatch = output.match(/HttpPortNumber\s*=\s*(\d+)/);
+    if (portMatch && portMatch[1]) {
+      pluginPort = portMatch[1].trim();
+    }
+
+    return {
+      instances,
+      mtaUrl,
+      pluginToken,
+      pluginPort
+    };
+  } catch (err) {
+    return null;
+  }
+}
+
 function mergeJsonFile(filePath, updater) {
   let existing = {};
   if (fs.existsSync(filePath)) {
@@ -98,7 +186,7 @@ function mergeJsonFile(filePath, updater) {
   fs.writeFileSync(filePath, JSON.stringify(updated, null, 2), 'utf8');
 }
 
-function generateIdeConfigs(workspaceDir, mcpSource, projectDir, mprPath, mtaUrl, appName, mtaAuthHeader, pluginToken) {
+function generateIdeConfigs(workspaceDir, mcpSource, projectDir, mprPath, mtaUrl, appName, mtaAuthHeader, pluginToken, defaultInstanceToken) {
   const isToolsWorkspace = path.resolve(workspaceDir) === path.resolve(toolsRootDir);
   const proxyScriptPath = isToolsWorkspace
     ? '${workspaceFolder}/scripts/mta-proxy.js'
@@ -142,6 +230,7 @@ function generateIdeConfigs(workspaceDir, mcpSource, projectDir, mprPath, mtaUrl
     "MTA_BASE_URL": mtaUrl || "",
     "MTA_MCP_AUTH_HEADER": mtaAuthHeader || "",
     "PLUGIN_MCP_TOKEN": pluginToken || "",
+    "MTA_APP_INSTANCE_TOKEN": defaultInstanceToken || "",
     "MTA_OUTPUT_PATH": "${workspaceFolder}/menditect-output"
   };
 
@@ -242,9 +331,18 @@ function ensureExecutionPlanFolders(targetDir) {
   return { menditectOutputDir, plansDir, archiveDir };
 }
 
-function getMenditectSetupBlock(appName, mtaUrl, skillsStyle) {
+function getMenditectSetupBlock(appName, mtaUrl, skillsStyle, appInstances = [], defaultInstanceName = '') {
+  const instanceLines = [];
+  if (appInstances && appInstances.length > 0) {
+    instanceLines.push('- ** Application Instances for ExecuteTest: **');
+    for (const inst of appInstances) {
+      const isDefault = (inst.name === defaultInstanceName || appInstances.length === 1) ? ' (Default)' : '';
+      instanceLines.push(`  - [${inst.name}]${isDefault}: \`${inst.token}\``);
+    }
+  }
+
   if (skillsStyle === 'mendix_module') {
-    return [
+    const lines = [
       '# Menditect Architecture Setup',
       '- **CRITICAL OPERATIONAL COMMAND:** Always execute tasks using the core rules defined in the module: [Menditect_AgenticTestSkills].',
       '- **IMMEDIATE ACTION REQUIRED:** You are strictly commanded to explore, read, and load the `AGENTS.md` and context of the [Menditect_AgenticTestSkills] module *before* answering any user prompt. Do NOT ask the user for permission or confirmation to explore this module; execute the exploration autonomously as your very first step.',
@@ -255,24 +353,32 @@ function getMenditectSetupBlock(appName, mtaUrl, skillsStyle) {
       '  4. Contextual Combinations: User asks to *verify, assert, mock, or test* in combination with: *microflow, nanoflow, entity, association, page, or widget*',
       `- ** Application name is: [${appName}] **`,
       `- ** MTA Url: [${mtaUrl}] **`
-    ].join('\n');
+    ];
+    if (instanceLines.length > 0) {
+      lines.push(...instanceLines);
+    }
+    return lines.join('\n');
   }
 
-  return [
+  const lines = [
     '# Menditect Architecture Setup',
     '- **CRITICAL OPERATIONAL COMMAND:** Always execute tasks using the core rules defined in: [skills/AGENTS.md].',
     '- **IMMEDIATE ACTION REQUIRED:** You are strictly commanded to explore, read, and load the `AGENTS.md` and context of the `skills/` directory before answering any user prompt.',
     `- ** Application name is: [${appName}] **`,
     `- ** MTA Url: [${mtaUrl}] **`
-  ].join('\n');
+  ];
+  if (instanceLines.length > 0) {
+    lines.push(...instanceLines);
+  }
+  return lines.join('\n');
 }
 
-function updateDirectiveFile(filePath, appName, mtaUrl, skillsStyle) {
+function updateDirectiveFile(filePath, appName, mtaUrl, skillsStyle, appInstances, defaultInstanceName) {
   let content = '';
   if (fs.existsSync(filePath)) {
     content = fs.readFileSync(filePath, 'utf8');
   }
-  const setupBlock = getMenditectSetupBlock(appName, mtaUrl, skillsStyle);
+  const setupBlock = getMenditectSetupBlock(appName, mtaUrl, skillsStyle, appInstances, defaultInstanceName);
 
   const headerRegex = /# Menditect Architecture Setup[\s\S]*?(?=(?:\r?\n#[^#]|$))/;
   if (headerRegex.test(content)) {
@@ -286,7 +392,7 @@ function updateDirectiveFile(filePath, appName, mtaUrl, skillsStyle) {
   fs.writeFileSync(filePath, content, 'utf8');
 }
 
-function updateAgentDirectives(targetDir, appName, mtaUrl, skillsStyle) {
+function updateAgentDirectives(targetDir, appName, mtaUrl, skillsStyle, appInstances, defaultInstanceName) {
   const targetFiles = [
     path.join(targetDir, 'AGENTS.md'),
     path.join(targetDir, 'CLAUDE.md'),
@@ -295,7 +401,7 @@ function updateAgentDirectives(targetDir, appName, mtaUrl, skillsStyle) {
   ];
 
   for (const file of targetFiles) {
-    updateDirectiveFile(file, appName, mtaUrl, skillsStyle);
+    updateDirectiveFile(file, appName, mtaUrl, skillsStyle, appInstances, defaultInstanceName);
   }
   console.log(`Configured Menditect Architecture Setup in ${targetDir}`);
 }
@@ -453,9 +559,99 @@ async function run() {
     console.log(`Skills destination: ${skillsDir}`);
   }
 
-  // 4. MTA Endpoints & Tokens
+  // 4. MTA Application Instances & Connection Settings
+  console.log('\n--- MTA Connection & Application Instances ---');
+
+  let discoveredMta = null;
+  if (mprPath && fs.existsSync(mprPath)) {
+    process.stdout.write('Checking Mendix project for configured MTA settings via mxcli... ');
+    discoveredMta = inspectMendixMtaSettings(mprPath);
+    if (discoveredMta && discoveredMta.instances && discoveredMta.instances.length > 0) {
+      console.log('done.');
+    } else {
+      console.log('none found.');
+    }
+  }
+
+  let appInstances = [];
+  let defaultInstanceName = '';
+  let defaultInstanceToken = '';
+
+  if (discoveredMta && discoveredMta.instances && discoveredMta.instances.length > 0) {
+    console.log(`\n[FOUND] Discovered ${discoveredMta.instances.length} App Instance Token(s) across Mendix project configurations:`);
+    discoveredMta.instances.forEach((inst, idx) => {
+      const previewToken = inst.token.length > 12 ? `${inst.token.slice(0, 8)}...${inst.token.slice(-4)}` : inst.token;
+      console.log(`  [${idx + 1}] ${inst.name.padEnd(25)} (Token: ${previewToken})`);
+    });
+
+    const useDiscovered = await ask('\nUse these discovered application instances? (y/n)', 'y');
+    if (useDiscovered.toLowerCase().startsWith('y')) {
+      appInstances = discoveredMta.instances;
+      let selectionIdx = 1;
+      if (appInstances.length > 1) {
+        const choice = await ask(`Select active default instance for ExecuteTest (1-${appInstances.length})`, '1');
+        const parsed = parseInt(choice, 10);
+        if (!isNaN(parsed) && parsed >= 1 && parsed <= appInstances.length) {
+          selectionIdx = parsed;
+        }
+      }
+      defaultInstanceName = appInstances[selectionIdx - 1].name;
+      defaultInstanceToken = appInstances[selectionIdx - 1].token;
+      console.log(`Active default instance: [${defaultInstanceName}]`);
+    }
+  }
+
+  // Fallback to manual prompt if no instances discovered or accepted
+  if (!appInstances.length) {
+    const existingInstances = existingConfig.app_instances || [];
+    const defaultCount = existingInstances.length ? String(existingInstances.length) : '1';
+    console.log('\nConfigure application instances (required for ExecuteTest, e.g. local, test, acceptance):');
+    const rawCount = await ask('How many MTA application instances do you have?', defaultCount);
+    const count = Math.max(1, parseInt(rawCount, 10) || 1);
+
+    for (let i = 1; i <= count; i++) {
+      const existingInst = existingInstances[i - 1];
+      const defaultName = existingInst ? existingInst.name : (i === 1 ? 'local' : (i === 2 ? 'test' : `instance-${i}`));
+      const instName = await ask(`Instance #${i} name (e.g. local, test)`, defaultName);
+
+      let token = '';
+      const defaultToken = existingInst ? existingInst.token : (i === 1 ? (existingConfig.default_app_instance_token || '') : '');
+      while (!token) {
+        token = await ask(`Instance #${i} token (from MTA Portal > Application > Application Instances)`, defaultToken);
+        token = token.trim();
+        if (!token) {
+          if (rl.closed) {
+            token = '00000000-0000-0000-0000-000000000000';
+            break;
+          }
+          console.log('[ERROR] Application instance token cannot be empty.');
+        }
+      }
+
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(token)) {
+        console.log('[NOTICE] Token does not match standard UUID format, but will be used as entered.');
+      }
+
+      appInstances.push({ name: instName, token });
+    }
+
+    let selIdx = 1;
+    if (appInstances.length > 1) {
+      const defaultSel = existingConfig.default_app_instance
+        ? String(appInstances.findIndex(x => x.name === existingConfig.default_app_instance) + 1 || 1)
+        : '1';
+      const choice = await ask(`Select active default instance for ExecuteTest (1-${appInstances.length})`, defaultSel);
+      const parsed = parseInt(choice, 10);
+      if (!isNaN(parsed) && parsed >= 1 && parsed <= appInstances.length) {
+        selIdx = parsed;
+      }
+    }
+    defaultInstanceName = appInstances[selIdx - 1].name;
+    defaultInstanceToken = appInstances[selIdx - 1].token;
+  }
+
   console.log('\n--- MTA Connection Settings ---');
-  const defaultMtaUrl = existingConfig.mta_base_url || 'https://mta-trial.mendixcloud.com';
+  const defaultMtaUrl = discoveredMta?.mtaUrl || existingConfig.mta_base_url || 'https://mta-trial.mendixcloud.com';
   const mtaUrl = await ask('MTA URL', defaultMtaUrl);
   const mcpEndpoint = mtaUrl.replace(/\/$/, '') + '/primitivetools/mcp';
 
@@ -463,10 +659,12 @@ async function run() {
   const rawMtaToken = await ask('MTA Bearer Token (e.g. Bearer <token> or raw token)', defaultMtaToken);
   const mtaAuthHeader = formatBearerToken(rawMtaToken);
   
-  const defaultPluginUrl = existingConfig.plugin_mcp_url || 'http://localhost:8081/plugin/mcp';
+  const defaultPluginUrl = (discoveredMta?.pluginPort ? `http://localhost:${discoveredMta.pluginPort}/plugin/mcp` : null)
+    || existingConfig.plugin_mcp_url
+    || 'http://localhost:8081/plugin/mcp';
   const pluginUrl = await ask('App under test Plugin URL', defaultPluginUrl);
 
-  const defaultPluginToken = existingConfig.plugin_mcp_token || 'Bearer 1';
+  const defaultPluginToken = discoveredMta?.pluginToken || existingConfig.plugin_mcp_token || 'Bearer 1';
   const rawPluginToken = await ask('App under test Plugin Token (Bearer token recommended)', defaultPluginToken);
   const pluginToken = formatBearerToken(rawPluginToken);
   
@@ -500,6 +698,9 @@ async function run() {
     mta_auth_header: mtaAuthHeader,
     plugin_mcp_url: pluginUrl,
     plugin_mcp_token: pluginToken,
+    app_instances: appInstances,
+    default_app_instance: defaultInstanceName,
+    default_app_instance_token: defaultInstanceToken,
     model_source: mcpSource,
     mendix_project_dir: projectDir,
     mendix_mpr_path: mprPath
@@ -516,7 +717,7 @@ async function run() {
   }
 
   // 7. Write .env in workspace
-  const envContent = `MTA_MCP_ENDPOINT="${mcpEndpoint}"
+  let envContent = `MTA_MCP_ENDPOINT="${mcpEndpoint}"
 MTA_MCP_AUTH_HEADER="${mtaAuthHeader}"
 PLUGIN_MCP_URL="${pluginUrl}"
 PLUGIN_MCP_TOKEN="${pluginToken}"
@@ -524,29 +725,50 @@ MENDIX_PROJECT_DIR="${projectDir}"
 MENDIX_MPR_PATH="${mprPath}"
 MENDIX_APP_NAME="${appName}"
 MTA_OUTPUT_PATH="${menditectOutputDir.replace(/\\/g, '/')}"
+MTA_APP_INSTANCE_TOKEN="${defaultInstanceToken}"
+MTA_APP_INSTANCE_DEFAULT="${defaultInstanceName}"
 `;
+
+  for (const inst of appInstances) {
+    const safeEnvName = inst.name.replace(/[^a-zA-Z0-9_]/g, '_').toUpperCase();
+    envContent += `MTA_APP_INSTANCE_${safeEnvName}="${inst.token}"\n`;
+  }
+
   fs.writeFileSync(path.join(workspaceDir, '.env'), envContent);
   console.log(`Created .env in ${workspaceDir}`);
 
   // 8. Generate & Merge IDE Configs
-  generateIdeConfigs(workspaceDir, mcpSource, projectDir, mprPath, mtaUrl, appName, mtaAuthHeader, pluginToken);
+  generateIdeConfigs(workspaceDir, mcpSource, projectDir, mprPath, mtaUrl, appName, mtaAuthHeader, pluginToken, defaultInstanceToken);
 
   // 9. Deploy local mxcli runners into workspace
   const mprFileName = mprPath ? path.basename(mprPath) : '';
   deployMxcliWrappers(workspaceDir, mprFileName);
 
   // 10. Update Agent Directives in workspaceDir
-  updateAgentDirectives(workspaceDir, appName, mtaUrl, skillsStyle);
+  updateAgentDirectives(workspaceDir, appName, mtaUrl, skillsStyle, appInstances, defaultInstanceName);
 
   console.log('\n======================================================');
   console.log(' Setup completed successfully!');
   console.log(` Workspace configured at: ${workspaceDir}`);
   console.log(` Skills destination:      ${skillsDir}`);
+  console.log(` Active App Instance:     ${defaultInstanceName}`);
+  console.log(` App Instances Total:     ${appInstances.length}`);
   console.log(` Execution plans:         ${plansDir}`);
   console.log(` Execution plans archive: ${archiveDir}`);
   console.log(' Next step: run "npm run update" to sync skills and binaries.');
   console.log('======================================================');
-  rl.close();
+  if (rl) rl.close();
 }
 
-run();
+if (require.main === module) {
+  run();
+} else {
+  module.exports = {
+    inspectMendixMtaSettings,
+    getMenditectSetupBlock,
+    formatBearerToken,
+    findMpr,
+    detectMendixVersion,
+    isVersion1112OrHigher
+  };
+}
