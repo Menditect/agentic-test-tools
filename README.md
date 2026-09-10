@@ -105,14 +105,19 @@ The wizard will guide you through:
   - `[2] Direct Mendix Project Workspace`: Run your AI agent directly inside your Mendix project directory.
   - `[3] Other Custom Directory`: Run your AI agent from an external directory or monorepo root.
 - **Automated Mendix Settings Discovery via `mxcli`**:
-  - When a `.mpr` project is detected, the setup wizard automatically inspects the model settings to discover any pre-configured `MtaPluginModule.ApplicationInstanceToken` constants across your Mendix Studio Pro configurations (e.g. `local`, `test`, `cloud`), as well as connection URLs and plugin tokens.
-  - If discovered, you can confirm all instances in 1 click and designate your active default instance for test execution.
+  - When a `.mpr` project is detected, the setup wizard automatically inspects the model settings to discover pre-configured constants across your Mendix Studio Pro configurations:
+    - `MtaPluginModule.ApplicationInstanceToken`: Discovers all application instance tokens (e.g. `local`, `test`, `cloud`).
+    - `MtaPluginModule.MTAConnectionUrl`: Scoped per configuration (WebSocket `wss://` / `ws://` converted to `https://` / `http://`).
+    - `ApplicationRootUrl`: Uses the runtime URL of the selected configuration to construct the MTA Plugin MCP endpoint (`<runtimeUrl>/plugin/mcp`, e.g. `http://localhost:8081/plugin/mcp`).
+    - `MtaPluginModule.McpServerAccessToken`: Reads the plugin MCP server access token from the chosen configuration's constants and formats it as a Bearer token.
+  - **Flexible Instance Selection**: You can import all discovered instances (`all` or Enter), pick specific instances using comma-separated numbers or ranges (e.g. `6` or `1, 3, 6` or `1-3, 6`), or skip to manual entry (`none`).
+  - **Configuration-Scoped Connection Settings**: When you select your active default instance, the wizard automatically pre-fills the MTA URL, Plugin URL, and Plugin Bearer Token that belong specifically to that selected configuration profile.
 - **MTA Application Instance Tokens (`ExecuteTest`)**:
   - Running tests via MTA's `ExecuteTest` requires an `ApplicationInstanceToken` (UUID provided by MTA Portal > Application > Application Instances).
   - If not discovered from the Mendix model, the wizard prompts for how many instances you have (minimum 1) and asks for each instance's name and token, setting `MTA_APP_INSTANCE_TOKEN`.
-- **MTA Base URL**: Enter your MTA URL (pre-filled with discovered URL or defaults to MTA Trial).
+- **MTA Base URL**: Enter your MTA URL (pre-filled with the discovered URL of your selected instance, or defaults to MTA Trial).
 - **MTA Bearer Token**: Enter your MTA Bearer token (required; raw tokens are automatically formatted with `Bearer `).
-- **MTA Plugin URL & Token**: Pre-filled with discovered settings or defaults to `http://localhost:8081/plugin/mcp` and `Bearer 1` (Bearer token recommended).
+- **MTA Plugin URL & Token**: Pre-filled from your selected configuration's runtime URL (`ApplicationRootUrl` + `/plugin/mcp`) and access token constant (`MtaPluginModule.McpServerAccessToken`), or defaults to `http://localhost:8081/plugin/mcp` and `Bearer 1`.
 - **Mendix Model Information Source**:
   - `[1] mxcli` *(Recommended for headless/CLI/CI)*: Inspects `.mpr` directly without needing Studio Pro open. The wizard prompts for your project directory and auto-detects your `.mpr` file.
   - `[2] Studio Pro MCP`: Connects live to Studio Pro 11.10+ built-in MCP server (`http://localhost:7782/mcp`).

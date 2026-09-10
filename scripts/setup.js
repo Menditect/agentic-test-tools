@@ -95,6 +95,55 @@ function detectMendixModule(mendixDir) {
   return null;
 }
 
+function parseInstanceSelection(input, instances) {
+  const trimmed = (input || '').trim().toLowerCase();
+  if (!trimmed || trimmed === 'all' || trimmed === 'y' || trimmed === 'yes') {
+    return { type: 'all', selected: instances };
+  }
+  if (trimmed === 'none' || trimmed === 'n' || trimmed === 'no') {
+    return { type: 'none', selected: [] };
+  }
+
+  const tokens = trimmed.split(/[, ]+/).filter(Boolean);
+  const selectedIndices = new Set();
+
+  for (const token of tokens) {
+    if (token.includes('-')) {
+      const [startStr, endStr] = token.split('-');
+      const start = parseInt(startStr, 10);
+      const end = parseInt(endStr, 10);
+      if (!isNaN(start) && !isNaN(end) && start <= end) {
+        for (let idx = start; idx <= end; idx++) {
+          if (idx >= 1 && idx <= instances.length) {
+            selectedIndices.add(idx - 1);
+          } else {
+            return { type: 'invalid', selected: [] };
+          }
+        }
+      } else {
+        return { type: 'invalid', selected: [] };
+      }
+    } else {
+      const idx = parseInt(token, 10);
+      if (!isNaN(idx) && idx >= 1 && idx <= instances.length) {
+        selectedIndices.add(idx - 1);
+      } else {
+        return { type: 'invalid', selected: [] };
+      }
+    }
+  }
+
+  if (selectedIndices.size === 0) {
+    return { type: 'invalid', selected: [] };
+  }
+
+  const selected = Array.from(selectedIndices)
+    .sort((a, b) => a - b)
+    .map(i => instances[i]);
+
+  return { type: 'subset', selected };
+}
+
 function inspectMendixMtaSettings(mprPath) {
   if (!mprPath || !fs.existsSync(mprPath)) return null;
 
@@ -125,46 +174,117 @@ function inspectMendixMtaSettings(mprPath) {
       timeout: 25000
     });
 
-    const instances = [];
-    const seenNames = new Set();
-    const tokenRegex = /alter settings constant '([^']+)'\s+value\s+'([^']*)'\s+in configuration '([^']+)';/g;
-    let match;
-    while ((match = tokenRegex.exec(output)) !== null) {
-      const [_, constantName, value, configName] = match;
-      if (constantName.includes('ApplicationInstanceToken') && value && value.trim()) {
-        const cleanVal = value.trim();
-        if (!seenNames.has(configName)) {
-          seenNames.add(configName);
-          instances.push({ name: configName, token: cleanVal });
-        }
+    const configMap = new Map();
+
+    // 1. Parse configuration blocks to capture HttpPortNumber / ApplicationRootUrl per configuration
+    const configBlockRegex = /create or modify configuration '([^']+)'([\s\S]*?);/g;
+    let cMatch;
+    while ((cMatch = configBlockRegex.exec(output)) !== null) {
+      const cfgName = cMatch[1];
+      const body = cMatch[2];
+      let port = null;
+      const portMatch = body.match(/HttpPortNumber\s*=\s*(\d+)/);
+      if (portMatch) {
+        port = portMatch[1].trim();
+      }
+
+      let runtimeUrl = null;
+      const rootUrlMatch = body.match(/ApplicationRootUrl\s*=\s*'([^']+)'/);
+      if (rootUrlMatch && rootUrlMatch[1] && rootUrlMatch[1].trim()) {
+        runtimeUrl = rootUrlMatch[1].trim();
+      } else if (port) {
+        runtimeUrl = `http://localhost:${port}/`;
+      }
+
+      let pluginUrl = null;
+      if (runtimeUrl) {
+        pluginUrl = runtimeUrl.replace(/\/+$/, '') + '/plugin/mcp';
+      }
+
+      configMap.set(cfgName, {
+        name: cfgName,
+        token: '',
+        mtaUrl: null,
+        runtimeUrl,
+        pluginUrl,
+        pluginToken: null,
+        pluginPort: port || '8081'
+      });
+    }
+
+    // 2. Parse alter settings constant ... in configuration '...'
+    const constRegex = /alter settings constant '([^']+)'\s+value\s+'([^']*)'\s+in configuration '([^']+)';/g;
+    let constMatch;
+    while ((constMatch = constRegex.exec(output)) !== null) {
+      const [_, constantName, rawVal, configName] = constMatch;
+      const val = rawVal.trim();
+      if (!configMap.has(configName)) {
+        configMap.set(configName, {
+          name: configName,
+          token: '',
+          mtaUrl: null,
+          runtimeUrl: null,
+          pluginUrl: null,
+          pluginToken: null,
+          pluginPort: '8081'
+        });
+      }
+      const entry = configMap.get(configName);
+      if (constantName.includes('ApplicationInstanceToken') && val) {
+        entry.token = val;
+      } else if (constantName.includes('MTAConnectionUrl') && val) {
+        entry.mtaUrl = val.replace(/^wss:\/\//i, 'https://').replace(/^ws:\/\//i, 'http://');
+      } else if (constantName.includes('McpServerAccessToken') && val) {
+        entry.pluginToken = formatBearerToken(val);
       }
     }
 
-    let mtaUrl = null;
-    const urlMatch = output.match(/alter settings constant 'MtaPluginModule\.MTAConnectionUrl'\s+value\s+'([^']*)'/);
-    if (urlMatch && urlMatch[1] && urlMatch[1].trim()) {
-      let rawUrl = urlMatch[1].trim();
-      rawUrl = rawUrl.replace(/^wss:\/\//i, 'https://').replace(/^ws:\/\//i, 'http://');
-      mtaUrl = rawUrl;
+    // 3. Global fallbacks if not defined on a specific configuration
+    let globalMtaUrl = null;
+    const globalUrlMatch = output.match(/alter settings constant 'MtaPluginModule\.MTAConnectionUrl'\s+value\s+'([^']*)'/);
+    if (globalUrlMatch && globalUrlMatch[1] && globalUrlMatch[1].trim()) {
+      globalMtaUrl = globalUrlMatch[1].trim().replace(/^wss:\/\//i, 'https://').replace(/^ws:\/\//i, 'http://');
     }
 
-    let pluginToken = null;
-    const pluginTokenMatch = output.match(/alter settings constant 'MtaPluginModule\.McpServerAccessToken'\s+value\s+'([^']*)'/);
-    if (pluginTokenMatch && pluginTokenMatch[1] && pluginTokenMatch[1].trim()) {
-      pluginToken = formatBearerToken(pluginTokenMatch[1].trim());
+    let globalPluginToken = null;
+    const globalTokenMatch = output.match(/alter settings constant 'MtaPluginModule\.McpServerAccessToken'\s+value\s+'([^']*)'/);
+    if (globalTokenMatch && globalTokenMatch[1] && globalTokenMatch[1].trim()) {
+      globalPluginToken = formatBearerToken(globalTokenMatch[1].trim());
     }
 
-    let pluginPort = null;
-    const portMatch = output.match(/HttpPortNumber\s*=\s*(\d+)/);
-    if (portMatch && portMatch[1]) {
-      pluginPort = portMatch[1].trim();
+    let globalPort = null;
+    const globalPortMatch = output.match(/HttpPortNumber\s*=\s*(\d+)/);
+    if (globalPortMatch && globalPortMatch[1]) {
+      globalPort = globalPortMatch[1].trim();
+    }
+
+    let globalRuntimeUrl = null;
+    let globalPluginUrl = null;
+    const globalRootUrlMatch = output.match(/ApplicationRootUrl\s*=\s*'([^']+)'/);
+    if (globalRootUrlMatch && globalRootUrlMatch[1] && globalRootUrlMatch[1].trim()) {
+      globalRuntimeUrl = globalRootUrlMatch[1].trim();
+      globalPluginUrl = globalRuntimeUrl.replace(/\/+$/, '') + '/plugin/mcp';
+    }
+
+    const instances = [];
+    for (const entry of configMap.values()) {
+      if (entry.token) {
+        if (!entry.mtaUrl && globalMtaUrl) entry.mtaUrl = globalMtaUrl;
+        if (!entry.pluginToken && globalPluginToken) entry.pluginToken = globalPluginToken;
+        if (!entry.runtimeUrl && globalRuntimeUrl) entry.runtimeUrl = globalRuntimeUrl;
+        if (!entry.pluginUrl && globalPluginUrl) entry.pluginUrl = globalPluginUrl;
+        if (!entry.pluginPort && globalPort) entry.pluginPort = globalPort;
+        instances.push(entry);
+      }
     }
 
     return {
       instances,
-      mtaUrl,
-      pluginToken,
-      pluginPort
+      globalMtaUrl,
+      globalPluginToken,
+      globalRuntimeUrl,
+      globalPluginUrl,
+      globalPluginPort: globalPort
     };
   } catch (err) {
     return null;
@@ -576,28 +696,60 @@ async function run() {
   let appInstances = [];
   let defaultInstanceName = '';
   let defaultInstanceToken = '';
+  let activeConfig = null;
 
   if (discoveredMta && discoveredMta.instances && discoveredMta.instances.length > 0) {
     console.log(`\n[FOUND] Discovered ${discoveredMta.instances.length} App Instance Token(s) across Mendix project configurations:`);
     discoveredMta.instances.forEach((inst, idx) => {
       const previewToken = inst.token.length > 12 ? `${inst.token.slice(0, 8)}...${inst.token.slice(-4)}` : inst.token;
-      console.log(`  [${idx + 1}] ${inst.name.padEnd(25)} (Token: ${previewToken})`);
+      const urlInfo = inst.mtaUrl ? ` -> MTA: ${inst.mtaUrl}` : '';
+      console.log(`  [${idx + 1}] ${inst.name.padEnd(25)} (Token: ${previewToken})${urlInfo}`);
     });
 
-    const useDiscovered = await ask('\nUse these discovered application instances? (y/n)', 'y');
-    if (useDiscovered.toLowerCase().startsWith('y')) {
-      appInstances = discoveredMta.instances;
-      let selectionIdx = 1;
-      if (appInstances.length > 1) {
-        const choice = await ask(`Select active default instance for ExecuteTest (1-${appInstances.length})`, '1');
+    let selection = null;
+    while (!selection || selection.type === 'invalid') {
+      const choice = await ask('\nSelect instances to use (\'all\', comma-separated numbers e.g. 1,3,6, or \'none\')', 'all');
+      selection = parseInstanceSelection(choice, discoveredMta.instances);
+      if (selection.type === 'invalid') {
+        if (rl && rl.closed) {
+          selection = { type: 'all', selected: discoveredMta.instances };
+          break;
+        }
+        console.log(`[NOTICE] Invalid selection. Enter 'all', 'none', or numbers between 1 and ${discoveredMta.instances.length}.`);
+      }
+    }
+
+    if (selection.type === 'all' || selection.type === 'subset') {
+      appInstances = selection.selected;
+
+      if (appInstances.length === 1) {
+        defaultInstanceName = appInstances[0].name;
+        defaultInstanceToken = appInstances[0].token;
+        activeConfig = appInstances[0];
+        console.log(`Active default instance: [${defaultInstanceName}]`);
+      } else {
+        console.log('\nSelected application instances:');
+        appInstances.forEach((inst, idx) => {
+          const previewToken = inst.token.length > 12 ? `${inst.token.slice(0, 8)}...${inst.token.slice(-4)}` : inst.token;
+          const urlInfo = inst.mtaUrl ? ` -> MTA: ${inst.mtaUrl}` : '';
+          console.log(`  [${idx + 1}] ${inst.name.padEnd(25)} (Token: ${previewToken})${urlInfo}`);
+        });
+
+        const defaultSel = existingConfig.default_app_instance
+          ? String(Math.max(1, appInstances.findIndex(x => x.name === existingConfig.default_app_instance) + 1 || 1))
+          : '1';
+
+        let selectionIdx = 1;
+        const choice = await ask(`\nSelect active default instance for ExecuteTest (1-${appInstances.length})`, defaultSel);
         const parsed = parseInt(choice, 10);
         if (!isNaN(parsed) && parsed >= 1 && parsed <= appInstances.length) {
           selectionIdx = parsed;
         }
+        defaultInstanceName = appInstances[selectionIdx - 1].name;
+        defaultInstanceToken = appInstances[selectionIdx - 1].token;
+        activeConfig = appInstances[selectionIdx - 1];
+        console.log(`Active default instance: [${defaultInstanceName}]`);
       }
-      defaultInstanceName = appInstances[selectionIdx - 1].name;
-      defaultInstanceToken = appInstances[selectionIdx - 1].token;
-      console.log(`Active default instance: [${defaultInstanceName}]`);
     }
   }
 
@@ -651,7 +803,7 @@ async function run() {
   }
 
   console.log('\n--- MTA Connection Settings ---');
-  const defaultMtaUrl = discoveredMta?.mtaUrl || existingConfig.mta_base_url || 'https://mta-trial.mendixcloud.com';
+  const defaultMtaUrl = activeConfig?.mtaUrl || discoveredMta?.globalMtaUrl || existingConfig.mta_base_url || 'https://mta-trial.mendixcloud.com';
   const mtaUrl = await ask('MTA URL', defaultMtaUrl);
   const mcpEndpoint = mtaUrl.replace(/\/$/, '') + '/primitivetools/mcp';
 
@@ -659,12 +811,15 @@ async function run() {
   const rawMtaToken = await ask('MTA Bearer Token (e.g. Bearer <token> or raw token)', defaultMtaToken);
   const mtaAuthHeader = formatBearerToken(rawMtaToken);
   
-  const defaultPluginUrl = (discoveredMta?.pluginPort ? `http://localhost:${discoveredMta.pluginPort}/plugin/mcp` : null)
+  const defaultPluginUrl = activeConfig?.pluginUrl
+    || (discoveredMta?.globalPluginUrl)
+    || (activeConfig?.pluginPort ? `http://localhost:${activeConfig.pluginPort}/plugin/mcp` : null)
+    || (discoveredMta?.globalPluginPort ? `http://localhost:${discoveredMta.globalPluginPort}/plugin/mcp` : null)
     || existingConfig.plugin_mcp_url
     || 'http://localhost:8081/plugin/mcp';
   const pluginUrl = await ask('App under test Plugin URL', defaultPluginUrl);
 
-  const defaultPluginToken = discoveredMta?.pluginToken || existingConfig.plugin_mcp_token || 'Bearer 1';
+  const defaultPluginToken = activeConfig?.pluginToken || discoveredMta?.globalPluginToken || existingConfig.plugin_mcp_token || 'Bearer 1';
   const rawPluginToken = await ask('App under test Plugin Token (Bearer token recommended)', defaultPluginToken);
   const pluginToken = formatBearerToken(rawPluginToken);
   
@@ -764,6 +919,7 @@ if (require.main === module) {
   run();
 } else {
   module.exports = {
+    parseInstanceSelection,
     inspectMendixMtaSettings,
     getMenditectSetupBlock,
     formatBearerToken,
