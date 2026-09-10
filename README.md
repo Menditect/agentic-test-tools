@@ -124,7 +124,7 @@ The wizard will guide you through:
 - **Application Name**: Automatically derived from your Mendix `.mpr` filename (e.g. `BillingApp.mpr` becomes `BillingApp`), with interactive confirmation.
 
 The setup wizard automatically:
-1. Creates your local `.env` and `mta_config.json` with your configured endpoints, tokens, app instances, and workspace targets.
+1. Creates your local `.env` and `mta_config.json` (strictly adhering to [mta_config.schema.json](mta_config.schema.json) and the [MTA Configuration Specification](docs/mta-config-reference.md)) with your configured endpoints, tokens, app instances, and workspace targets.
 2. Generates and merges IDE configurations in `.vscode/mcp.json`, `.vscode/settings.json`, `.cursor/mcp.json`, and `.claude/settings.json` in your selected workspace without overwriting existing settings or permissions.
 3. Appends the **Menditect Architecture Setup** block (including the application instances mapping) to the project-level `AGENTS.md` (and other agent files), preserving existing rules.
 4. Deploys local `./mxcli` wrappers into your workspace so model inspection commands work out of the box.
@@ -284,7 +284,8 @@ agentic-test-tools/
 ├── docs/                      # In-depth setup, agent, and model guides
 │   ├── AGENT_COMPATIBILITY.md
 │   ├── GETTING_STARTED.md
-│   └── MODEL_SOURCE_GUIDE.md
+│   ├── MODEL_SOURCE_GUIDE.md
+│   └── mta-config-reference.md # Canonical MTA configuration specification
 ├── releases/                  # Release notes per version
 ├── scripts/
 │   ├── create-release.js      # Release note scaffolding script
@@ -293,12 +294,13 @@ agentic-test-tools/
 │   ├── sync-skills.js         # Dedicated Menditect skills updater
 │   ├── sync-mxcli.js          # Dedicated Mendix Labs mxcli updater
 │   ├── sync-upstream.js       # Unified updater
-│   └── verify-setup.js        # MCP connectivity verification tool
+│   └── verify-setup.js        # MCP connectivity & schema verification tool
 ├── skills/                    # Auto-synced Menditect skills (gitignored)
 ├── AGENTS.md                  # Master orchestrator rulebook for all AI agents
 ├── CLAUDE.md                  # Claude specific workspace directives
 ├── GEMINI.md                  # Gemini / Antigravity workspace directives
 ├── RELEASES.md                # Release history and index
+├── mta_config.schema.json     # JSON schema specification for mta_config.json
 ├── mxcli.bat / .ps1 / .sh     # Smart wrappers auto-injecting configured .mpr path
 ├── setup.ps1                  # Native Windows setup entrypoint
 ├── update.ps1                 # Native Windows full update entrypoint

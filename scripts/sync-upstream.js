@@ -17,7 +17,9 @@ function loadConfig() {
   for (const p of possiblePaths) {
     if (fs.existsSync(p)) {
       try {
-        return JSON.parse(fs.readFileSync(p, 'utf8'));
+        const raw = JSON.parse(fs.readFileSync(p, 'utf8'));
+        const { normalizeConfigAliases } = require('./setup');
+        return normalizeConfigAliases ? normalizeConfigAliases(raw) : raw;
       } catch (e) {}
     }
   }
@@ -29,6 +31,10 @@ function saveConfig(config) {
     fs.writeFileSync(path.join(rootDir, 'mta_config.json'), JSON.stringify(config, null, 2), 'utf8');
     if (config.workspace_dir && path.resolve(config.workspace_dir) !== path.resolve(rootDir)) {
       fs.writeFileSync(path.join(config.workspace_dir, 'mta_config.json'), JSON.stringify(config, null, 2), 'utf8');
+      const schemaSource = path.join(rootDir, 'mta_config.schema.json');
+      if (fs.existsSync(schemaSource)) {
+        try { fs.copyFileSync(schemaSource, path.join(config.workspace_dir, 'mta_config.schema.json')); } catch (e) {}
+      }
     }
   } catch (e) {}
 }

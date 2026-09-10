@@ -5,12 +5,93 @@ const path = require('path');
 const proxyPath = path.join(__dirname, 'mta-proxy.js');
 const configPath = path.join(__dirname, '..', 'mta_config.json');
 
-let config = {};
+let rawConfig = {};
 try {
   if (fs.existsSync(configPath)) {
-    config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+    rawConfig = JSON.parse(fs.readFileSync(configPath, 'utf8'));
   }
 } catch (e) {}
+
+const { normalizeConfigAliases } = require('./setup');
+const config = normalizeConfigAliases ? normalizeConfigAliases(rawConfig) : rawConfig;
+
+function validateConfigAgainstSchema(cfg) {
+  const schemaPath = path.join(__dirname, '..', 'mta_config.schema.json');
+  if (!fs.existsSync(schemaPath)) {
+    return { valid: true, errors: [] };
+  }
+  let schema = {};
+  try {
+    schema = JSON.parse(fs.readFileSync(schemaPath, 'utf8'));
+  } catch (e) {
+    return { valid: false, errors: ['Failed to parse mta_config.schema.json'] };
+  }
+
+  const errors = [];
+  const required = schema.required || ['mta_base_url', 'mcp_endpoint'];
+  for (const req of required) {
+    if (!cfg[req] || (typeof cfg[req] === 'string' && !cfg[req].trim())) {
+      errors.push(`Missing required property: '${req}'`);
+    }
+  }
+
+  if (cfg.workspace_type && !['clone_root', 'mendix_project', 'custom'].includes(cfg.workspace_type)) {
+    errors.push(`Invalid workspace_type: '${cfg.workspace_type}' (expected: clone_root, mendix_project, or custom)`);
+  }
+
+  if (cfg.skills_style && !['standard', 'mendix_module'].includes(cfg.skills_style)) {
+    errors.push(`Invalid skills_style: '${cfg.skills_style}' (expected: standard or mendix_module)`);
+  }
+
+  if (cfg.model_source && !['mxcli', 'studiopro'].includes(cfg.model_source)) {
+    errors.push(`Invalid model_source: '${cfg.model_source}' (expected: mxcli or studiopro)`);
+  }
+
+  if (cfg.app_instances) {
+    if (!Array.isArray(cfg.app_instances)) {
+      errors.push(`'app_instances' must be an array`);
+    } else {
+      cfg.app_instances.forEach((inst, idx) => {
+        if (!inst || typeof inst !== 'object') {
+          errors.push(`app_instances[${idx}] must be an object`);
+        } else {
+          if (!inst.name || typeof inst.name !== 'string') {
+            errors.push(`app_instances[${idx}] missing required string 'name'`);
+          }
+          if (!inst.token || typeof inst.token !== 'string') {
+            errors.push(`app_instances[${idx}] missing required string 'token'`);
+          }
+        }
+      });
+    }
+  }
+
+  return { valid: errors.length === 0, errors };
+}
+
+function checkMxcliBinary() {
+  const toolsRootDir = path.join(__dirname, '..');
+  const binName = process.platform === 'win32' ? 'mxcli.exe' : 'mxcli';
+  const binPath = path.join(toolsRootDir, 'bin', binName);
+
+  if (!fs.existsSync(binPath)) {
+    console.warn(`[WARN] mxcli binary not found at ${binPath}. Run "npm run update:mxcli" to install it.`);
+    return false;
+  }
+
+  try {
+    const versionOut = require('child_process').execSync(`"${binPath}" --version`, {
+      encoding: 'utf8',
+      stdio: ['pipe', 'pipe', 'ignore'],
+      timeout: 5000
+    }).trim();
+    console.log(`[PASS] mxcli binary is ready (${versionOut}).`);
+    return true;
+  } catch (e) {
+    console.warn(`[WARN] mxcli binary present at ${binPath} but failed execution check: ${e.message}`);
+    return false;
+  }
+}
 
 function checkTokenPreflight(mode) {
   if (mode === 'mta') {
@@ -126,6 +207,20 @@ async function run() {
   console.log(`Workspace Dir:      ${wsDir}`);
   console.log(`Skills Destination: ${skillsDir}\n`);
 
+  console.log('Checking configuration schema compliance...');
+  const schemaResult = validateConfigAgainstSchema(rawConfig);
+  if (schemaResult.valid) {
+    console.log('[PASS] mta_config.json complies with mta_config.schema.json.\n');
+  } else {
+    console.warn('[WARN] mta_config.json has schema validation warnings:');
+    schemaResult.errors.forEach(err => console.warn(`  - ${err}`));
+    console.log();
+  }
+
+  console.log('Checking model tooling readiness...');
+  checkMxcliBinary();
+  console.log();
+
   checkAppInstances();
   console.log();
 
@@ -141,7 +236,7 @@ async function run() {
   }
   
   if (mtaOk && pluginOk && spOk) {
-    console.log('Verification Complete. All MCP servers are responding correctly.');
+    console.log('Verification Complete. All MCP servers and configuration checks passed.');
   } else {
     console.log('Verification Failed. Please check your config and ensure the Mendix app is running if testing the plugin.');
   }

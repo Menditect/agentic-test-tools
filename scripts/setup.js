@@ -30,6 +30,18 @@ function ask(question, defaultVal) {
   });
 }
 
+function normalizeConfigAliases(cfg) {
+  if (!cfg || typeof cfg !== 'object') return {};
+  const normalized = { ...cfg };
+  normalized.mendix_mpr_path = cfg.mendix_mpr_path || cfg.mpr_path || cfg.mprPath || '';
+  normalized.mendix_project_dir = cfg.mendix_project_dir || cfg.project_dir || cfg.projectDir || '';
+  normalized.mta_base_url = cfg.mta_base_url || cfg.mta_url || cfg.mtaUrl || '';
+  normalized.default_app_instance_token = cfg.default_app_instance_token || (cfg.app_instances && cfg.app_instances[0]?.token) || cfg.instance_token || '';
+  normalized.execution_plans_dir = cfg.execution_plans_dir || (cfg.mta_output_path ? path.join(cfg.mta_output_path, 'execution-plans') : '');
+  normalized.execution_plans_archive_dir = cfg.execution_plans_archive_dir || (normalized.execution_plans_dir ? path.join(normalized.execution_plans_dir, 'archive') : '');
+  return normalized;
+}
+
 function findMpr(dir) {
   try {
     const entries = fs.readdirSync(dir, { withFileTypes: true });
@@ -556,7 +568,7 @@ async function run() {
   try {
     const existingConfigPath = path.join(toolsRootDir, 'mta_config.json');
     if (fs.existsSync(existingConfigPath)) {
-      existingConfig = JSON.parse(fs.readFileSync(existingConfigPath, 'utf8'));
+      existingConfig = normalizeConfigAliases(JSON.parse(fs.readFileSync(existingConfigPath, 'utf8')));
     }
   } catch (e) {}
 
@@ -838,7 +850,21 @@ async function run() {
   const { menditectOutputDir, plansDir, archiveDir } = ensureExecutionPlanFolders(workspaceDir);
 
   // 6. Save Configuration to mta_config.json
+  const sanitizedInstances = appInstances.map(inst => {
+    const item = {
+      name: inst.name,
+      token: inst.token
+    };
+    if (inst.mtaUrl && typeof inst.mtaUrl === 'string') item.mtaUrl = inst.mtaUrl;
+    if (inst.runtimeUrl && typeof inst.runtimeUrl === 'string') item.runtimeUrl = inst.runtimeUrl;
+    if (inst.pluginUrl && typeof inst.pluginUrl === 'string') item.pluginUrl = inst.pluginUrl;
+    if (inst.pluginToken && typeof inst.pluginToken === 'string') item.pluginToken = inst.pluginToken;
+    if (inst.pluginPort) item.pluginPort = String(inst.pluginPort);
+    return item;
+  });
+
   const config = {
+    $schema: './mta_config.schema.json',
     workspace_type: workspaceType,
     workspace_dir: workspaceDir,
     skills_dir: skillsDir,
@@ -853,7 +879,7 @@ async function run() {
     mta_auth_header: mtaAuthHeader,
     plugin_mcp_url: pluginUrl,
     plugin_mcp_token: pluginToken,
-    app_instances: appInstances,
+    app_instances: sanitizedInstances,
     default_app_instance: defaultInstanceName,
     default_app_instance_token: defaultInstanceToken,
     model_source: mcpSource,
@@ -864,10 +890,14 @@ async function run() {
   fs.writeFileSync(path.join(toolsRootDir, 'mta_config.json'), JSON.stringify(config, null, 2));
   console.log('\nCreated / updated mta_config.json');
 
-  // Also write mta_config.json to workspaceDir if different from toolsRootDir for local reference
+  // Also write mta_config.json and copy schema to workspaceDir if different from toolsRootDir for local reference
   if (path.resolve(workspaceDir) !== path.resolve(toolsRootDir)) {
     try {
       fs.writeFileSync(path.join(workspaceDir, 'mta_config.json'), JSON.stringify(config, null, 2));
+      const schemaSource = path.join(toolsRootDir, 'mta_config.schema.json');
+      if (fs.existsSync(schemaSource)) {
+        fs.copyFileSync(schemaSource, path.join(workspaceDir, 'mta_config.schema.json'));
+      }
     } catch (e) {}
   }
 
@@ -925,6 +955,7 @@ if (require.main === module) {
     formatBearerToken,
     findMpr,
     detectMendixVersion,
-    isVersion1112OrHigher
+    isVersion1112OrHigher,
+    normalizeConfigAliases
   };
 }

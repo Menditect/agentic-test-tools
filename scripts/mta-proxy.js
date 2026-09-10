@@ -29,14 +29,16 @@ let TARGET_URL = '';
 let AUTH_HEADER = null;
 
 if (mode === 'mta') {
-  TARGET_URL = config.mcp_endpoint || process.env.MTA_MCP_ENDPOINT || 'https://mta-trial.mendixcloud.com/primitivetools/mcp';
+  const baseMtaUrl = config.mta_base_url || config.mta_url || config.mtaUrl || null;
+  const derivedMcp = baseMtaUrl ? baseMtaUrl.replace(/\/+$/, '') + '/primitivetools/mcp' : null;
+  TARGET_URL = config.mcp_endpoint || derivedMcp || process.env.MTA_MCP_ENDPOINT || 'https://mta-trial.mendixcloud.com/primitivetools/mcp';
   AUTH_HEADER = config.mta_auth_header || process.env.MTA_MCP_AUTH_HEADER || (process.env.MTA_MCP_TOKEN ? `Bearer ${process.env.MTA_MCP_TOKEN}` : null);
   if (!AUTH_HEADER) {
     console.error('Warning: No MTA Bearer token configured in mta_config.json or MTA_MCP_AUTH_HEADER. Requests to MTA MCP will fail authentication.');
   }
 } else if (mode === 'plugin') {
-  TARGET_URL = config.plugin_mcp_url || process.env.PLUGIN_MCP_URL || 'http://localhost:8081/plugin/mcp';
-  AUTH_HEADER = config.plugin_mcp_token || process.env.PLUGIN_MCP_TOKEN || null;
+  TARGET_URL = config.plugin_mcp_url || config.plugin_url || config.pluginUrl || process.env.PLUGIN_MCP_URL || 'http://localhost:8081/plugin/mcp';
+  AUTH_HEADER = config.plugin_mcp_token || config.plugin_token || config.pluginToken || process.env.PLUGIN_MCP_TOKEN || null;
 } else if (mode === 'studiopro') {
   TARGET_URL = config.studiopro_mcp_url || process.env.STUDIOPRO_MCP_URL || 'http://localhost:7782/mcp';
   AUTH_HEADER = null;

@@ -4,6 +4,7 @@ This page lists all the releases of the Menditect Agent Workspace Template, with
 
 | Release Version | Date | Key Highlights / Release Message |
 | :--- | :--- | :--- |
+| [v1.3.2](releases/v1.3.2.md) | 2026-09-10 | improved mta_config file |
 | [v1.3.1](releases/v1.3.1.md) | 2026-09-10 | improved setup of configuration |
 | [v1.3.0](releases/v1.3.0.md) | 2026-09-10 | dicovery for app instances in mpr file added |
 | [v1.2.0](releases/v1.2.0.md) | 2026-09-09 | support for different workspace configurations |
