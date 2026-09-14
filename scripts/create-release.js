@@ -115,7 +115,7 @@ No breaking changes. Run \`npm run update:skills\` and \`npm run update:mxcli\` 
   }
   console.log(`\n[CONTRACT GUARDRAIL]`);
   console.log(`  The mta_config contract version is currently v${schemaVersion}.`);
-  console.log(`  This contract is governed independently by mta-ai-assistant (agentic-test-skills).`);
+  console.log(`  This contract is governed independently by agentic-test-skills (Menditect/agentic-test-skills).`);
   console.log(`  DO NOT modify mta_config.schema.json or the contract sections in README.md`);
   console.log(`  during template releases. Only package.json, RELEASES.md, and releases/${version}.md apply.`);
 

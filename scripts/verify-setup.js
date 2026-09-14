@@ -115,9 +115,8 @@ function checkSchemaContractAlignment() {
   const localVersion = localSchema.version;
 
   const candidateUpstreams = [
-    { name: 'local skills (skills/mta-build)', path: path.join(rootDir, 'skills', 'mta-build', 'references', 'mta_config.schema.json') },
-    { name: 'mta-ai-assistant repo', path: path.join(rootDir, '..', 'mta-ai-assistant', '.agent', 'skills', 'mta-build', 'references', 'mta_config.schema.json') },
-    { name: 'mta-ai-assistant public repo', path: path.join(rootDir, '..', 'mta-ai-assistant', 'public-repo', 'AgenticTestSkills', 'mta-build', 'references', 'mta_config.schema.json') }
+    { name: 'agentic-test-skills (local skills/mta-build)', path: path.join(rootDir, 'skills', 'mta-build', 'references', 'mta_config.schema.json') },
+    { name: 'agentic-test-skills repository', path: path.join(rootDir, '..', 'agentic-test-skills', 'AgenticTestSkills', 'mta-build', 'references', 'mta_config.schema.json') }
   ];
 
   for (const candidate of candidateUpstreams) {
@@ -126,7 +125,7 @@ function checkSchemaContractAlignment() {
         const upstream = JSON.parse(fs.readFileSync(candidate.path, 'utf8'));
         if (upstream.version && localVersion !== upstream.version) {
           console.warn(`[WARN] Contract version mismatch: mta_config.schema.json is v${localVersion}, but ${candidate.name} is v${upstream.version}!`);
-          console.warn(`       mta_config contract version must match mta-ai-assistant. Run "npm run update:skills" to align.`);
+          console.warn(`       mta_config contract version must match agentic-test-skills. Run "npm run update:skills" to align.`);
           return false;
         } else if (upstream.version) {
           console.log(`[PASS] mta_config schema contract (v${localVersion}) is aligned with ${candidate.name}.`);

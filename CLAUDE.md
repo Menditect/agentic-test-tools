@@ -9,7 +9,7 @@ When working with Mendix, remember:
 
 ## Versioning & Contract Isolation Rules
 - **Template Release Version**: Governed exclusively by the user when publishing. Applies ONLY to `package.json`, `RELEASES.md`, `releases/`, and git tags.
-- **mta_config Contract Version**: SSOT is `mta-ai-assistant` (`references/mta_config.schema.json`). NEVER bump or modify `mta_config` version when releasing `agentic-test-tools`. It must strictly match `mta-ai-assistant`.
+- **mta_config Contract Version**: SSOT is `agentic-test-skills` (`references/mta_config.schema.json`). NEVER bump or modify `mta_config` version when releasing `agentic-test-tools`. It must strictly match `agentic-test-skills`.
 
 # Menditect Architecture Setup
 - **CRITICAL OPERATIONAL COMMAND:** Always execute tasks using the core rules defined in: [skills/AGENTS.md].
