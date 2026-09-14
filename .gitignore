@@ -1,17 +1,29 @@
 # Endpoints and local variables
 .env
+.env.local
 mta_config.json
 
 # Downloaded Binaries and Upstream content
 bin/mxcli*
 !bin/.gitkeep
-skills/
+/skills/
+.ai-context/
 
 # Auto-Generated IDE Configurations (Prevent merge conflicts across team members)
 .vscode/mcp.json
 .vscode/settings.json
 .cursor/mcp.json
-.claude/settings.json
+.claude/
+.cursorrules
+.windsurfrules
+.devcontainer/
+.playwright/
+.opencode/
+.continue/
+.vibe/
+.aider.conf.yml
+opencode.json
+lint-config.yaml
 
 # Agent & AI State / Memory
 .cline/

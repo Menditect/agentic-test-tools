@@ -12,6 +12,33 @@ try {
   if (pkg.version) scriptVersion = ` (v${pkg.version})`;
 } catch (e) {}
 
+function loadEnvFile(filePath) {
+  if (!filePath || !fs.existsSync(filePath)) return;
+  try {
+    const lines = fs.readFileSync(filePath, 'utf8').split(/\r?\n/);
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#')) continue;
+      const match = trimmed.match(/^([^=]+)=(.*)$/);
+      if (match) {
+        const key = match[1].trim();
+        let val = match[2].trim();
+        if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+          val = val.slice(1, -1);
+        }
+        if (!process.env[key]) {
+          process.env[key] = val;
+        }
+      }
+    }
+  } catch (e) {}
+}
+
+loadEnvFile(path.join(process.cwd(), '.env.local'));
+loadEnvFile(path.join(process.cwd(), '.env'));
+loadEnvFile(path.join(rootDir, '.env.local'));
+loadEnvFile(path.join(rootDir, '.env'));
+
 let rawConfig = {};
 try {
   if (fs.existsSync(configPath)) {
@@ -93,6 +120,19 @@ function checkMxcliBinary() {
       timeout: 5000
     }).trim();
     console.log(`[PASS] mxcli binary is ready (${versionOut}).`);
+
+    // Check if mxcli AI scaffolding (.ai-context) is initialized
+    const targetDir = config.workspace_dir || toolsRootDir;
+    const aiContextPath = path.join(targetDir, '.ai-context');
+    const dotMxcliPath = path.join(targetDir, '.mxcli');
+    if (fs.existsSync(aiContextPath)) {
+      console.log(`[PASS] mxcli AI scaffolding is initialized (.ai-context/skills/).`);
+    } else {
+      console.log(`[NOTICE] mxcli AI scaffolding not initialized in ${targetDir}. Run "npm run setup" to initialize skills and context.`);
+    }
+    if (fs.existsSync(dotMxcliPath)) {
+      console.log(`[PASS] Local mxcli working directory is present (.mxcli/).`);
+    }
     return true;
   } catch (e) {
     console.warn(`[WARN] mxcli binary present at ${binPath} but failed execution check: ${e.message}`);
@@ -102,21 +142,64 @@ function checkMxcliBinary() {
 
 function checkTokenPreflight(mode) {
   if (mode === 'mta') {
-    const hasToken = (config.mta_auth_header && config.mta_auth_header.trim()) || process.env.MTA_MCP_AUTH_HEADER || process.env.MTA_MCP_TOKEN;
+    const hasToken = process.env.MTA_MCP_AUTH_HEADER || (process.env.MTA_MCP_TOKEN ? `Bearer ${process.env.MTA_MCP_TOKEN}` : null) || (config.mta_auth_header && config.mta_auth_header.trim());
     if (!hasToken) {
-      console.warn('[WARN] No MTA Bearer token configured in mta_config.json or .env. MTA MCP requires authentication.');
+      console.warn('[WARN] No MTA Bearer token configured in .env or MTA_MCP_AUTH_HEADER. MTA MCP requires authentication.');
     } else {
       console.log('[INFO] MTA Bearer token is configured.');
     }
   } else if (mode === 'plugin') {
-    const hasToken = (config.plugin_mcp_token && config.plugin_mcp_token.trim()) || process.env.PLUGIN_MCP_TOKEN;
+    const hasToken = process.env.PLUGIN_MCP_TOKEN || (config.plugin_mcp_token && config.plugin_mcp_token.trim());
     if (!hasToken) {
-      console.warn('[WARN] No Plugin token configured in mta_config.json or .env (recommended: Bearer <token>).');
+      console.warn('[WARN] No Plugin token configured in .env or PLUGIN_MCP_TOKEN (recommended: Bearer <token>).');
     } else {
       console.log('[INFO] Plugin token is configured.');
     }
   } else if (mode === 'studiopro') {
     console.log('[INFO] Studio Pro MCP does not require authentication.');
+  }
+}
+
+function checkSecurityHygiene() {
+  console.log('Checking secret storage and security hygiene...');
+  const wsDir = config.workspace_dir || rootDir;
+
+  // 1. Check .vscode/settings.json
+  const settingsPath = path.join(wsDir, '.vscode', 'settings.json');
+  if (fs.existsSync(settingsPath)) {
+    try {
+      const settingsContent = fs.readFileSync(settingsPath, 'utf8');
+      if (settingsContent.includes('MTA_MCP_AUTH_HEADER') || settingsContent.includes('PLUGIN_MCP_TOKEN')) {
+        console.warn('  [WARN] Sensitive tokens detected in .vscode/settings.json! Run "npm run setup" to migrate them to .env and clean settings.json.');
+      } else {
+        console.log('  [PASS] .vscode/settings.json contains no sensitive tokens.');
+      }
+    } catch (e) {}
+  }
+
+  // 2. Check .env gitignore status
+  const envPath = path.join(wsDir, '.env');
+  const gitIgnorePath = path.join(wsDir, '.gitignore');
+  if (fs.existsSync(envPath)) {
+    if (fs.existsSync(gitIgnorePath)) {
+      const gitIgnoreContent = fs.readFileSync(gitIgnorePath, 'utf8');
+      const lines = gitIgnoreContent.split(/\r?\n/).map(l => l.trim());
+      const hasEnv = lines.some(l => l === '.env' || l === '*.env' || l.startsWith('.env'));
+      if (hasEnv) {
+        console.log('  [PASS] .env is properly protected by .gitignore.');
+      } else {
+        console.warn('  [WARN] .env exists in workspace but is NOT ignored in .gitignore! Add .env to .gitignore to prevent accidental commit.');
+      }
+    } else {
+      console.warn('  [WARN] .env exists in workspace but no .gitignore found! Ensure credentials are not committed.');
+    }
+  }
+
+  // 3. Check mta_config.json legacy tokens
+  if (rawConfig.mta_auth_header || rawConfig.plugin_mcp_token) {
+    console.log('  [INFO] mta_config.json contains legacy auth tokens. Run "npm run setup" to decouple secrets to .env.');
+  } else {
+    console.log('  [PASS] mta_config.json contains no hardcoded authentication tokens.');
   }
 }
 
@@ -226,6 +309,9 @@ async function run() {
 
   console.log('Checking model tooling readiness...');
   checkMxcliBinary();
+  console.log();
+
+  checkSecurityHygiene();
   console.log();
 
   checkAppInstances();

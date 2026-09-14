@@ -6,6 +6,36 @@ const path = require('path');
 
 const mode = (process.argv[2] || 'mta').toLowerCase();
 
+function loadEnvFile(filePath) {
+  if (!filePath || !fs.existsSync(filePath)) return;
+  try {
+    const lines = fs.readFileSync(filePath, 'utf8').split(/\r?\n/);
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#')) continue;
+      const match = trimmed.match(/^([^=]+)=(.*)$/);
+      if (match) {
+        const key = match[1].trim();
+        let val = match[2].trim();
+        if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+          val = val.slice(1, -1);
+        }
+        if (!process.env[key]) {
+          process.env[key] = val;
+        }
+      }
+    }
+  } catch (e) {
+    // Ignore unreadable .env file
+  }
+}
+
+// Load secrets from local .env or .env.local
+loadEnvFile(path.join(process.cwd(), '.env.local'));
+loadEnvFile(path.join(process.cwd(), '.env'));
+loadEnvFile(path.join(__dirname, '..', '.env.local'));
+loadEnvFile(path.join(__dirname, '..', '.env'));
+
 // Read configuration
 let config = {};
 try {
@@ -32,13 +62,13 @@ if (mode === 'mta') {
   const baseMtaUrl = config.mta_base_url || config.mta_url || config.mtaUrl || null;
   const derivedMcp = baseMtaUrl ? baseMtaUrl.replace(/\/+$/, '') + '/primitivetools/mcp' : null;
   TARGET_URL = config.mcp_endpoint || derivedMcp || process.env.MTA_MCP_ENDPOINT || 'https://mta-trial.mendixcloud.com/primitivetools/mcp';
-  AUTH_HEADER = config.mta_auth_header || process.env.MTA_MCP_AUTH_HEADER || (process.env.MTA_MCP_TOKEN ? `Bearer ${process.env.MTA_MCP_TOKEN}` : null);
+  AUTH_HEADER = process.env.MTA_MCP_AUTH_HEADER || (process.env.MTA_MCP_TOKEN ? `Bearer ${process.env.MTA_MCP_TOKEN}` : null) || config.mta_auth_header || null;
   if (!AUTH_HEADER) {
-    console.error('Warning: No MTA Bearer token configured in mta_config.json or MTA_MCP_AUTH_HEADER. Requests to MTA MCP will fail authentication.');
+    console.error('Warning: No MTA Bearer token configured in MTA_MCP_AUTH_HEADER, .env, or mta_config.json. Requests to MTA MCP will fail authentication.');
   }
 } else if (mode === 'plugin') {
   TARGET_URL = config.plugin_mcp_url || config.plugin_url || config.pluginUrl || process.env.PLUGIN_MCP_URL || 'http://localhost:8081/plugin/mcp';
-  AUTH_HEADER = config.plugin_mcp_token || config.plugin_token || config.pluginToken || process.env.PLUGIN_MCP_TOKEN || null;
+  AUTH_HEADER = process.env.PLUGIN_MCP_TOKEN || config.plugin_mcp_token || config.plugin_token || config.pluginToken || null;
 } else if (mode === 'studiopro') {
   TARGET_URL = config.studiopro_mcp_url || process.env.STUDIOPRO_MCP_URL || 'http://localhost:7782/mcp';
   AUTH_HEADER = null;

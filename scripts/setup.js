@@ -47,6 +47,61 @@ function normalizeConfigAliases(cfg) {
   return normalized;
 }
 
+function loadEnvFile(filePath) {
+  if (!filePath || !fs.existsSync(filePath)) return;
+  try {
+    const lines = fs.readFileSync(filePath, 'utf8').split(/\r?\n/);
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#')) continue;
+      const match = trimmed.match(/^([^=]+)=(.*)$/);
+      if (match) {
+        const key = match[1].trim();
+        let val = match[2].trim();
+        if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+          val = val.slice(1, -1);
+        }
+        if (!process.env[key]) {
+          process.env[key] = val;
+        }
+      }
+    }
+  } catch (e) {}
+}
+
+function ensureGitIgnoreEntries(dirPath, entries) {
+  const gitIgnorePath = path.join(dirPath, '.gitignore');
+  let currentContent = '';
+  if (fs.existsSync(gitIgnorePath)) {
+    try {
+      currentContent = fs.readFileSync(gitIgnorePath, 'utf8');
+    } catch (e) {
+      return;
+    }
+  }
+
+  const linesToAdd = entries.filter(entry => {
+    const escaped = entry.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(`(^|\\r?\\n)${escaped}(\\r?\\n|$)`);
+    return !regex.test(currentContent);
+  });
+
+  if (linesToAdd.length > 0) {
+    const header = currentContent.trimEnd() ? '\n\n# Menditect Agent local environment & secrets\n' : '# Menditect Agent local environment & secrets\n';
+    const updated = currentContent.trimEnd() + header + linesToAdd.join('\n') + '\n';
+    try {
+      fs.writeFileSync(gitIgnorePath, updated, 'utf8');
+      console.log(`Protected ${path.relative(process.cwd(), gitIgnorePath) || '.gitignore'}: added [${linesToAdd.join(', ')}]`);
+    } catch (e) {
+      console.warn(`Warning: Could not update ${gitIgnorePath}: ${e.message}`);
+    }
+  }
+}
+
+// Pre-load ambient secrets from tools root if available
+loadEnvFile(path.join(toolsRootDir, '.env.local'));
+loadEnvFile(path.join(toolsRootDir, '.env'));
+
 function findMpr(dir) {
   try {
     const entries = fs.readdirSync(dir, { withFileTypes: true });
@@ -176,6 +231,98 @@ function findMxcliBinary(mprPath) {
     return 'mxcli';
   } catch (e) {
     return null;
+  }
+}
+
+function initializeMxcli(targetDir, mprPath, optionalBin, options = {}) {
+  if (!targetDir || !fs.existsSync(targetDir)) return false;
+
+  const mxcliBin = optionalBin || findMxcliBinary(mprPath);
+  if (!mxcliBin) {
+    console.log('[NOTICE] mxcli binary not found. Skipping mxcli init.');
+    return false;
+  }
+
+  const aiContextDir = path.join(targetDir, '.ai-context');
+  const dotMxcliDir = path.join(targetDir, '.mxcli');
+  const agentsPath = path.join(targetDir, 'AGENTS.md');
+  const claudePath = path.join(targetDir, 'CLAUDE.md');
+  const isAlreadyInitialized = fs.existsSync(aiContextDir);
+
+  // Preserve pre-existing custom headers (e.g. Orchestrator instructions) so mxcli init does not discard them
+  let savedCustomAgentsHeader = '';
+  let savedCustomClaudeHeader = '';
+  if (!isAlreadyInitialized || options.forceFull) {
+    if (fs.existsSync(agentsPath)) {
+      const existing = fs.readFileSync(agentsPath, 'utf8');
+      const cleaned = existing.replace(/# Menditect Architecture Setup[\s\S]*?(?=(?:\r?\n#[^#]|$))/, '').trim();
+      if (cleaned && !cleaned.startsWith('# Mendix Project:')) {
+        savedCustomAgentsHeader = cleaned;
+      }
+    }
+    if (fs.existsSync(claudePath)) {
+      const existing = fs.readFileSync(claudePath, 'utf8');
+      const cleaned = existing.replace(/# Menditect Architecture Setup[\s\S]*?(?=(?:\r?\n#[^#]|$))/, '').trim();
+      if (cleaned && !cleaned.startsWith('# Mendix Project:')) {
+        savedCustomClaudeHeader = cleaned;
+      }
+    }
+  }
+
+  try {
+    if (!isAlreadyInitialized || options.forceFull) {
+      console.log(`\nInitializing Mendix AI scaffolding in ${targetDir}...`);
+      execSync(`"${mxcliBin}" init "${targetDir}" --all-tools`, {
+        stdio: ['ignore', 'pipe', 'ignore'],
+        timeout: 45000
+      });
+      console.log(`[PASS] Initialized mxcli AI context and skills (.ai-context/skills/).`);
+
+      // Restore saved custom headers if present
+      if (savedCustomAgentsHeader && fs.existsSync(agentsPath)) {
+        const generated = fs.readFileSync(agentsPath, 'utf8');
+        if (!generated.includes(savedCustomAgentsHeader)) {
+          fs.writeFileSync(agentsPath, savedCustomAgentsHeader + '\n\n' + generated, 'utf8');
+        }
+      }
+      if (savedCustomClaudeHeader && fs.existsSync(claudePath)) {
+        const generated = fs.readFileSync(claudePath, 'utf8');
+        if (!generated.includes(savedCustomClaudeHeader)) {
+          fs.writeFileSync(claudePath, savedCustomClaudeHeader + '\n\n' + generated, 'utf8');
+        }
+      }
+
+      // Initialize brain if .mpr is available and docs/brain does not exist
+      if (mprPath && fs.existsSync(mprPath)) {
+        const brainDir = path.join(targetDir, 'docs', 'brain');
+        if (!fs.existsSync(brainDir)) {
+          try {
+            execSync(`"${mxcliBin}" brain init -p "${mprPath}"`, {
+              stdio: ['ignore', 'ignore', 'ignore'],
+              timeout: 15000
+            });
+            console.log(`[PASS] Initialized project brain architecture store (docs/brain/).`);
+          } catch (e) {}
+        }
+      }
+    } else {
+      console.log(`\nRefreshing Mendix AI skills in ${targetDir}...`);
+      execSync(`"${mxcliBin}" init "${targetDir}" --sync-skills`, {
+        stdio: ['ignore', 'pipe', 'ignore'],
+        timeout: 30000
+      });
+      console.log(`[PASS] Refreshed mxcli AI skills via --sync-skills.`);
+    }
+
+    // Ensure local operational working directory .mxcli exists
+    if (!fs.existsSync(dotMxcliDir)) {
+      fs.mkdirSync(dotMxcliDir, { recursive: true });
+    }
+
+    return true;
+  } catch (err) {
+    console.warn(`[WARN] Could not complete mxcli initialization in ${targetDir}: ${err.message}`);
+    return false;
   }
 }
 
@@ -360,33 +507,28 @@ function generateIdeConfigs(workspaceDir, mcpSource, projectDir, mprPath, mtaUrl
     };
   });
 
-  // 2. VS Code .vscode/settings.json (merge terminal env vars)
+  // 2. VS Code .vscode/settings.json (merge terminal env vars, excluding sensitive tokens)
   const envVars = {
     "MENDIX_PROJECT_PATH": projectDir || "",
     "MENDIX_MPR_FILE": mprPath || "",
     "MENDIX_APP_NAME": appName || "",
     "MTA_BASE_URL": mtaUrl || "",
-    "MTA_MCP_AUTH_HEADER": mtaAuthHeader || "",
-    "PLUGIN_MCP_TOKEN": pluginToken || "",
     "MTA_APP_INSTANCE_TOKEN": defaultInstanceToken || "",
     "MTA_OUTPUT_PATH": "${workspaceFolder}/menditect-output"
   };
 
   mergeJsonFile(path.join(workspaceDir, '.vscode', 'settings.json'), (existing) => {
+    const cleanPlatformEnv = (orig) => {
+      const merged = { ...(orig || {}), ...envVars };
+      delete merged.MTA_MCP_AUTH_HEADER;
+      delete merged.PLUGIN_MCP_TOKEN;
+      return merged;
+    };
     return {
       ...existing,
-      "terminal.integrated.env.windows": {
-        ...(existing["terminal.integrated.env.windows"] || {}),
-        ...envVars
-      },
-      "terminal.integrated.env.linux": {
-        ...(existing["terminal.integrated.env.linux"] || {}),
-        ...envVars
-      },
-      "terminal.integrated.env.osx": {
-        ...(existing["terminal.integrated.env.osx"] || {}),
-        ...envVars
-      }
+      "terminal.integrated.env.windows": cleanPlatformEnv(existing["terminal.integrated.env.windows"]),
+      "terminal.integrated.env.linux": cleanPlatformEnv(existing["terminal.integrated.env.linux"]),
+      "terminal.integrated.env.osx": cleanPlatformEnv(existing["terminal.integrated.env.osx"])
     };
   });
 
@@ -584,6 +726,8 @@ async function run() {
   console.log('[1] Dedicated Tools Workspace (Clone root: ' + toolsRootDir + ')');
   console.log('    - Placed in agentic-test-tools:');
   console.log('      * skills/ (MTA test design, build, and run skills)');
+  console.log('      * .ai-context/skills/ (72+ Mendix AI skills initialized via mxcli init)');
+  console.log('      * .mxcli/ (local operational queue for decisions and caching; git-ignored)');
   console.log('      * .vscode/, .cursor/, .claude/ IDE configuration files');
   console.log('      * AGENTS.md, CLAUDE.md, GEMINI.md');
   console.log('      * menditect-output/execution-plans/ and menditect-output/execution-plans/archive/');
@@ -595,6 +739,8 @@ async function run() {
   console.log('[2] Direct Mendix Project Workspace (Your local Mendix project folder)');
   console.log('    - Placed in your Mendix project:');
   console.log('      * Skills: skillssource/_modules/menditect_agentictestskills/ (if Mendix 11.12+ and module installed) or ./skills/');
+  console.log('      * AI Scaffolding: .ai-context/skills/ (72+ Mendix AI skills initialized via mxcli init), docs/brain/');
+  console.log('      * Local Working Directory: .mxcli/ (local staging queue; automatically added to .gitignore)');
   console.log('      * Directives: Appends Menditect Setup to project AGENTS.md (existing rules preserved)');
   console.log('      * IDE Configs: Merged into .vscode/, .cursor/, and .claude/ (preserves existing permissions)');
   console.log('      * Local Runners: mxcli.bat and ./mxcli deployed in project root');
@@ -841,7 +987,7 @@ async function run() {
   const mtaUrl = await ask('MTA URL', defaultMtaUrl);
   const mcpEndpoint = mtaUrl.replace(/\/$/, '') + '/primitivetools/mcp';
 
-  const defaultMtaToken = existingConfig.mta_auth_header || '';
+  const defaultMtaToken = process.env.MTA_MCP_AUTH_HEADER || existingConfig.mta_auth_header || '';
   const rawMtaToken = await ask('MTA Bearer Token (e.g. Bearer <token> or raw token)', defaultMtaToken);
   const mtaAuthHeader = formatBearerToken(rawMtaToken);
   
@@ -853,7 +999,7 @@ async function run() {
     || 'http://localhost:8081/plugin/mcp';
   const pluginUrl = await ask('App under test Plugin URL', defaultPluginUrl);
 
-  const defaultPluginToken = activeConfig?.pluginToken || discoveredMta?.globalPluginToken || existingConfig.plugin_mcp_token || 'Bearer 1';
+  const defaultPluginToken = process.env.PLUGIN_MCP_TOKEN || activeConfig?.pluginToken || discoveredMta?.globalPluginToken || existingConfig.plugin_mcp_token || 'Bearer 1';
   const rawPluginToken = await ask('App under test Plugin Token (Bearer token recommended)', defaultPluginToken);
   const pluginToken = formatBearerToken(rawPluginToken);
   
@@ -871,7 +1017,7 @@ async function run() {
   // 5. Ensure Execution Plans Storage and Archive Folders
   const { menditectOutputDir, plansDir, archiveDir } = ensureExecutionPlanFolders(workspaceDir);
 
-  // 6. Save Configuration to mta_config.json
+  // 6. Save Configuration to mta_config.json (tokens stored in .env to prevent credential leakage)
   const sanitizedInstances = appInstances.map(inst => {
     const item = {
       name: inst.name,
@@ -898,9 +1044,7 @@ async function run() {
     application_name: appName,
     mta_base_url: mtaUrl,
     mcp_endpoint: mcpEndpoint,
-    mta_auth_header: mtaAuthHeader,
     plugin_mcp_url: pluginUrl,
-    plugin_mcp_token: pluginToken,
     app_instances: sanitizedInstances,
     default_app_instance: defaultInstanceName,
     default_app_instance_token: defaultInstanceToken,
@@ -910,7 +1054,7 @@ async function run() {
   };
 
   fs.writeFileSync(path.join(toolsRootDir, 'mta_config.json'), JSON.stringify(config, null, 2));
-  console.log('\nCreated / updated mta_config.json');
+  console.log('\nCreated / updated mta_config.json (secrets decoupled to .env)');
 
   // Also write mta_config.json and copy schema to workspaceDir if different from toolsRootDir for local reference
   if (path.resolve(workspaceDir) !== path.resolve(toolsRootDir)) {
@@ -923,7 +1067,12 @@ async function run() {
     } catch (e) {}
   }
 
-  // 7. Write .env in workspace
+  // 7. Ensure .gitignore protects credentials and write .env in workspace
+  ensureGitIgnoreEntries(workspaceDir, ['.env', '.env.local']);
+  if (path.resolve(workspaceDir) !== path.resolve(toolsRootDir)) {
+    ensureGitIgnoreEntries(toolsRootDir, ['.env', '.env.local']);
+  }
+
   let envContent = `MTA_MCP_ENDPOINT="${mcpEndpoint}"
 MTA_MCP_AUTH_HEADER="${mtaAuthHeader}"
 PLUGIN_MCP_URL="${pluginUrl}"
@@ -941,17 +1090,36 @@ MTA_APP_INSTANCE_DEFAULT="${defaultInstanceName}"
     envContent += `MTA_APP_INSTANCE_${safeEnvName}="${inst.token}"\n`;
   }
 
-  fs.writeFileSync(path.join(workspaceDir, '.env'), envContent);
+  try {
+    fs.writeFileSync(path.join(workspaceDir, '.env'), envContent, { mode: 0o600 });
+  } catch (e) {
+    fs.writeFileSync(path.join(workspaceDir, '.env'), envContent);
+  }
   console.log(`Created .env in ${workspaceDir}`);
 
-  // 8. Generate & Merge IDE Configs
+  // 8. Initialize Mendix AI Scaffolding (mxcli init, .ai-context/skills, docs/brain, .mxcli)
+  if (workspaceChoice === '1') {
+    initializeMxcli(toolsRootDir, mprPath, null, { isMendixProject: false });
+    if (projectDir && fs.existsSync(projectDir) && path.resolve(projectDir) !== path.resolve(toolsRootDir)) {
+      const initProject = await ask('\nAlso initialize external Mendix project repository with mxcli init? (y/n)', 'n');
+      if (initProject.toLowerCase().startsWith('y')) {
+        initializeMxcli(projectDir, mprPath, null, { isMendixProject: true });
+      }
+    }
+  } else if (workspaceChoice === '2') {
+    initializeMxcli(workspaceDir, mprPath, null, { isMendixProject: true });
+  } else {
+    initializeMxcli(workspaceDir, mprPath, null, { isMendixProject: false });
+  }
+
+  // 9. Generate & Merge IDE Configs
   generateIdeConfigs(workspaceDir, mcpSource, projectDir, mprPath, mtaUrl, appName, mtaAuthHeader, pluginToken, defaultInstanceToken);
 
-  // 9. Deploy local mxcli runners into workspace
+  // 10. Deploy local mxcli runners into workspace
   const mprFileName = mprPath ? path.basename(mprPath) : '';
   deployMxcliWrappers(workspaceDir, mprFileName);
 
-  // 10. Update Agent Directives in workspaceDir
+  // 11. Update Agent Directives in workspaceDir
   updateAgentDirectives(workspaceDir, appName, mtaUrl, skillsStyle, appInstances, defaultInstanceName);
 
   console.log('\n======================================================');
@@ -974,6 +1142,8 @@ if (require.main === module) {
     parseInstanceSelection,
     inspectMendixMtaSettings,
     findMxcliBinary,
+    initializeMxcli,
+    updateAgentDirectives,
     getMenditectSetupBlock,
     formatBearerToken,
     findMpr,

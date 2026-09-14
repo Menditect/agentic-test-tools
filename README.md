@@ -62,6 +62,7 @@ To understand how this workspace functions, it helps to understand the three dis
 ## Highlights
 
 - **60-Second Setup Wizard**: Interactive CLI script auto-detects your Mendix `.mpr` project, configures environment endpoints, and generates ready-to-use IDE configurations.
+- **Automated Mendix AI Scaffolding (`mxcli init`)**: Seamlessly initializes 72+ Mendix AI skills (`.ai-context/skills/`), project architecture store (`docs/brain/`), lint rules, and AI assistant configs (Claude Code, Cursor, Copilot, Windsurf) without clobbering existing instructions or sensitive credentials.
 - **Self-Healing MCP Proxy (`mta-proxy.js`)**: Automatically detects Mendix application and Studio Pro restarts. If your Mendix app or Studio Pro reboots or loses its session, the proxy transparently re-initializes the MCP handshake in the background, invalidates stale sessions, buffers pending tool calls with an extended restart window, and prevents AI agents from crashing or losing tool connections.
 - **Granular Upstream Updates**: Separate update commands for Menditect Skills (frequent releases) and Mendix Labs `mxcli` (occasional releases).
 - **Team Collaboration Ready**: Machine-specific states, downloaded binaries, and IDE configurations are pre-configured in `.gitignore`, allowing entire QA/development teams to collaborate on the same repository cleanly.
@@ -101,8 +102,8 @@ npm run setup
 
 The wizard will guide you through:
 - **Workspace Location**:
-  - `[1] Dedicated Tools Workspace (Clone Root)`: Run your AI agent directly from the cloned `agentic-test-tools` directory.
-  - `[2] Direct Mendix Project Workspace`: Run your AI agent directly inside your Mendix project directory.
+  - `[1] Dedicated Tools Workspace (Clone Root)`: Run your AI agent directly from the cloned `agentic-test-tools` directory. The wizard initializes the 72+ Mendix AI skills (`.ai-context/skills/`) and local staging directory (`.mxcli/`) directly inside `agentic-test-tools`, guaranteeing **ZERO files created or modified in your Mendix project repository**. (Optionally prompts if you also wish to scaffold the external Mendix project).
+  - `[2] Direct Mendix Project Workspace`: Run your AI agent directly inside your local Mendix project directory. The wizard runs `mxcli init` inside your Mendix project, placing `.ai-context/skills/`, `docs/brain/`, lint configurations, and tool permissions directly into the Mendix app repo so your entire team shares them.
   - `[3] Other Custom Directory`: Run your AI agent from an external directory or monorepo root.
 - **Automated Mendix Settings Discovery via `mxcli`**:
   - When a `.mpr` project is detected, the setup wizard automatically inspects the model settings (automatically downloading the `mxcli` binary on-demand if not already present) to discover pre-configured constants across your Mendix Studio Pro configurations:
@@ -124,19 +125,20 @@ The wizard will guide you through:
 - **Application Name**: Automatically derived from your Mendix `.mpr` filename (e.g. `BillingApp.mpr` becomes `BillingApp`), with interactive confirmation.
 
 The setup wizard automatically:
-1. Creates your local `.env` and `mta_config.json` (strictly adhering to [mta_config.schema.json](mta_config.schema.json) and the [MTA Configuration Specification](docs/mta-config-reference.md)) with your configured endpoints, tokens, app instances, and workspace targets.
-2. Generates and merges IDE configurations in `.vscode/mcp.json`, `.vscode/settings.json`, `.cursor/mcp.json`, and `.claude/settings.json` in your selected workspace without overwriting existing settings or permissions.
-3. Appends the **Menditect Architecture Setup** block (including the application instances mapping) to the project-level `AGENTS.md` (and other agent files), preserving existing rules.
-4. Deploys local `./mxcli` wrappers into your workspace so model inspection commands work out of the box.
+1. Creates your local `.env` (mode `0o600`) and `mta_config.json` (strictly adhering to [mta_config.schema.json](mta_config.schema.json) and the [MTA Configuration Specification](docs/mta-config-reference.md)) with your configured endpoints, tokens, app instances, and workspace targets.
+2. Initializes or refreshes Mendix AI scaffolding via `mxcli init` (`.ai-context/skills/`, `docs/brain/`, and `.mxcli/`), preserving any pre-existing custom `AGENTS.md` instructions.
+3. Generates and merges IDE configurations in `.vscode/mcp.json`, `.vscode/settings.json`, `.cursor/mcp.json`, and `.claude/settings.json` in your selected workspace without overwriting existing settings or permissions.
+4. Appends the **Menditect Architecture Setup** block (including the application instances mapping) to the project-level `AGENTS.md` (and other agent files), preserving existing rules.
+5. Deploys local `./mxcli` wrappers into your workspace so model inspection commands work out of the box.
 
 ---
 
 <!-- BEGIN_SHARED_MTA_CONFIG_CONTRACT -->
 ## Configuration Contract (`mta_config.json`) & Resolution Hierarchy
 
-All Menditect Agentic Test Skills strictly consume `mta_config.json` as the primary **Single Source of Truth (SSOT)** for workspace paths, MTA server endpoints, authentication tokens, model discovery sources, and application instances.
+All Menditect Agentic Test Skills strictly consume `mta_config.json` as the primary **Single Source of Truth (SSOT)** for workspace paths, MTA server endpoints, model discovery sources, and application instances. Sensitive authentication tokens (`MTA_MCP_AUTH_HEADER`, `PLUGIN_MCP_TOKEN`) are securely maintained in `.env`.
 
-### Canonical JSON Structure (v1.3.1)
+### Canonical JSON Structure (v1.4.0)
 
 ```json
 {
@@ -152,9 +154,7 @@ All Menditect Agentic Test Skills strictly consume `mta_config.json` as the prim
   "application_name": "MyMendixApp",
   "mta_base_url": "https://mta-instance.mendixcloud.com",
   "mcp_endpoint": "https://mta-instance.mendixcloud.com/primitivetools/mcp",
-  "mta_auth_header": "Bearer <your_mta_session_token>",
   "plugin_mcp_url": "http://localhost:8081/plugin/mcp",
-  "plugin_mcp_token": "Bearer 1",
   "app_instances": [
     {
       "name": "Local Development",
@@ -180,9 +180,9 @@ All Menditect Agentic Test Skills strictly consume `mta_config.json` as the prim
 | :--- | :--- | :--- |
 | `mta_base_url` | string (URI) | Base URL of the Menditect Test Automation web portal (e.g. `https://mta-instance.mendixcloud.com`). Used for clickable web navigation links. |
 | `mcp_endpoint` | string (URI) | MCP endpoint URL for the MTA primitive tools server (`[mta_base_url]/primitivetools/mcp`). |
-| `mta_auth_header` | string | HTTP Authorization header (`Bearer <session_token>`) for authenticating with the MTA server. |
+| `mta_auth_header` | string | *(Deprecated)* HTTP Authorization header (`Bearer <session_token>`) for authenticating with MTA server. Stored in `.env` as `MTA_MCP_AUTH_HEADER`. |
 | `plugin_mcp_url` | string (URI) | Local runtime plugin MCP endpoint (`[ApplicationRootUrl]/plugin/mcp`) for sub-second in-memory exploratory test execution. |
-| `plugin_mcp_token` | string | Authorization header (e.g. `Bearer 1`) for the runtime plugin MCP endpoint. |
+| `plugin_mcp_token` | string | *(Deprecated)* Authorization header (e.g. `Bearer 1`) for the runtime plugin MCP endpoint. Stored in `.env` as `PLUGIN_MCP_TOKEN`. |
 | `app_instances` | array | Discovered application runtime instances with `name`, `token`, `mtaUrl`, `runtimeUrl`, `pluginUrl`, `pluginToken`, and `pluginPort`. |
 | `default_app_instance` | string | Name of the primary default application runtime instance. |
 | `default_app_instance_token` | string (UUID) | MTA Application Instance Token used for executing tests via `ExecuteTest`. Eliminates manual prompts. |
@@ -206,9 +206,9 @@ Executing test suites or test cases via the `ExecuteTest` MCP tool requires a va
 
 When resolving configuration settings, AI agents must evaluate sources in this strict order of precedence:
 
-1. **`mta_config.json` (Priority #1 - SSOT)**: Evaluates `mcp_endpoint`, `mta_base_url`, `mta_auth_header`, `app_instances`, `default_app_instance_token`, `mendix_mpr_path`, and `execution_plans_dir`.
+1. **`mta_config.json` (Priority #1 - SSOT)**: Evaluates `mcp_endpoint`, `mta_base_url`, `app_instances`, `default_app_instance_token`, `mendix_mpr_path`, and `execution_plans_dir`. Backward-compatible fallback for `mta_auth_header`.
 2. **Project `AGENTS.md`**: Reads `- ** MTA Url: <URL> **` and instance token mappings (`- [Name] (Default): <Token>`).
-3. **Environment Variables (`.env` / process env)**: Reads `MTA_MCP_ENDPOINT`, `PLUGIN_MCP_URL`, `MTA_APP_INSTANCE_TOKEN`, and `MENDIX_MPR_PATH`.
+3. **Environment Variables (`.env` / process env)**: Primary secure storage for authentication headers (`MTA_MCP_AUTH_HEADER`, `PLUGIN_MCP_TOKEN`) and environment overrides (`MTA_MCP_ENDPOINT`, `PLUGIN_MCP_URL`, `MTA_APP_INSTANCE_TOKEN`, `MENDIX_MPR_PATH`).
 4. **IDE Settings (`.vscode/settings.json`, `.cursor/mcp.json`)**: Reads `MTA_BASE_URL` and `MENDIX_PROJECT_PATH`.
 5. **Session State (`mta_state.json`)**: Reads `mta_base_url`.
 6. **Interactive Prompt**: Prompts the user on turn 1 only if a required setting is absent across all configuration sources.
@@ -295,11 +295,17 @@ npm run update
 *(Windows PowerShell users can run `.\update.ps1`)*
 
 ### Step 4: Verify Your Setup
-Run the built-in diagnostic tool to verify MCP server connectivity:
+Run the built-in diagnostic tool to verify configuration compliance, token hygiene, and MCP server connectivity:
 
 ```bash
 npm run verify
 ```
+
+The verifier audits:
+- `mta_config.json` compliance against the schema contract.
+- Availability of the `mxcli` binary, initialization of Mendix AI skills (`.ai-context/skills/`), and presence of the `.mxcli/` operational staging folder.
+- Security hygiene (verifies no sensitive Bearer tokens are stored in `.vscode/settings.json` or unignored in Git).
+- Live preflight connectivity for both `mta` and `mta_plugin` MCP endpoints.
 
 ---
 
@@ -307,11 +313,11 @@ npm run verify
 
 Because Menditect Skills and Mendix Labs `mxcli` are maintained by different organizations and released on different cadences, you can update them independently:
 
-| Component | Maintained By | Update Frequency | Command (npm) | Command (PowerShell) |
-| :--- | :--- | :--- | :--- | :--- |
-| **MTA Skills** (`./skills/`) | **Menditect B.V.** | **Frequent** (new patterns, MTA features) | `npm run update:skills` | `.\update.ps1 -Skills` |
-| **`mxcli` Binary** (`./bin/`) | **Mendix Labs** | **Periodic** (new Mendix version support) | `npm run update:mxcli` | `.\update.ps1 -Mxcli` |
-| **Everything** | Both | When updating entire workspace | `npm run update` | `.\update.ps1` |
+| Component | Maintained By | Update Frequency | Command (npm) | Command (PowerShell) | What It Does |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **MTA Skills** (`./skills/`) | **Menditect B.V.** | **Frequent** (new patterns, MTA features) | `npm run update:skills` | `.\update.ps1 -Skills` | Pulls latest test design and automation skills from `agentic-test-skills`. |
+| **`mxcli` & AI Skills** (`./bin/`, `.ai-context/`) | **Mendix Labs** | **Periodic** (new Mendix version support) | `npm run update:mxcli` | `.\update.ps1 -Mxcli` | Downloads latest binary and automatically runs `mxcli init --sync-skills` across active workspaces without touching custom directives. |
+| **Everything** | Both | When updating entire workspace | `npm run update` | `.\update.ps1` | Runs both skill updates and mxcli binary synchronization in sequence. |
 
 None of these updates will ever overwrite your custom test configurations, `.env`, or test scripts.
 

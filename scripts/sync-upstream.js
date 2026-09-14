@@ -262,6 +262,30 @@ async function syncMxcli() {
       }
       console.log(`Copied mxcli binary to ${workspaceBinDir}`);
     }
+
+    // Sync mxcli AI skills in workspace and/or Mendix project using the updated binary
+    const targetsToSync = new Set();
+    if (workspaceDir && fs.existsSync(workspaceDir)) {
+      if (fs.existsSync(path.join(workspaceDir, '.ai-context'))) {
+        targetsToSync.add(workspaceDir);
+      }
+    }
+    if (config.mendix_project_dir && fs.existsSync(config.mendix_project_dir)) {
+      if (fs.existsSync(path.join(config.mendix_project_dir, '.ai-context'))) {
+        targetsToSync.add(config.mendix_project_dir);
+      }
+    }
+
+    for (const target of targetsToSync) {
+      try {
+        console.log(`Refreshing mxcli skills in ${target}...`);
+        execSync(`"${binaryPath}" init "${target}" --sync-skills`, { stdio: 'ignore', timeout: 30000 });
+        console.log(`[PASS] Refreshed mxcli skills in ${target}`);
+      } catch (e) {
+        console.warn(`[WARN] Could not sync mxcli skills in ${target}: ${e.message}`);
+      }
+    }
+
     return true;
   } catch (err) {
     console.error('Failed to update mxcli:', err.message);
