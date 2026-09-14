@@ -103,6 +103,42 @@ function validateConfigAgainstSchema(cfg) {
   return { valid: errors.length === 0, errors };
 }
 
+function checkSchemaContractAlignment() {
+  const localSchemaPath = path.join(rootDir, 'mta_config.schema.json');
+  if (!fs.existsSync(localSchemaPath)) return true;
+  let localSchema;
+  try {
+    localSchema = JSON.parse(fs.readFileSync(localSchemaPath, 'utf8'));
+  } catch (e) {
+    return true;
+  }
+  const localVersion = localSchema.version;
+
+  const candidateUpstreams = [
+    { name: 'local skills (skills/mta-build)', path: path.join(rootDir, 'skills', 'mta-build', 'references', 'mta_config.schema.json') },
+    { name: 'mta-ai-assistant repo', path: path.join(rootDir, '..', 'mta-ai-assistant', '.agent', 'skills', 'mta-build', 'references', 'mta_config.schema.json') },
+    { name: 'mta-ai-assistant public repo', path: path.join(rootDir, '..', 'mta-ai-assistant', 'public-repo', 'AgenticTestSkills', 'mta-build', 'references', 'mta_config.schema.json') }
+  ];
+
+  for (const candidate of candidateUpstreams) {
+    if (fs.existsSync(candidate.path)) {
+      try {
+        const upstream = JSON.parse(fs.readFileSync(candidate.path, 'utf8'));
+        if (upstream.version && localVersion !== upstream.version) {
+          console.warn(`[WARN] Contract version mismatch: mta_config.schema.json is v${localVersion}, but ${candidate.name} is v${upstream.version}!`);
+          console.warn(`       mta_config contract version must match mta-ai-assistant. Run "npm run update:skills" to align.`);
+          return false;
+        } else if (upstream.version) {
+          console.log(`[PASS] mta_config schema contract (v${localVersion}) is aligned with ${candidate.name}.`);
+          return true;
+        }
+      } catch (e) {}
+    }
+  }
+  console.log(`[INFO] mta_config schema contract version is v${localVersion}.`);
+  return true;
+}
+
 function checkMxcliBinary() {
   const toolsRootDir = path.join(__dirname, '..');
   const binName = process.platform === 'win32' ? 'mxcli.exe' : 'mxcli';
@@ -300,12 +336,13 @@ async function run() {
   console.log('Checking configuration schema compliance...');
   const schemaResult = validateConfigAgainstSchema(rawConfig);
   if (schemaResult.valid) {
-    console.log('[PASS] mta_config.json complies with mta_config.schema.json.\n');
+    console.log('[PASS] mta_config.json complies with mta_config.schema.json.');
   } else {
     console.warn('[WARN] mta_config.json has schema validation warnings:');
     schemaResult.errors.forEach(err => console.warn(`  - ${err}`));
-    console.log();
   }
+  checkSchemaContractAlignment();
+  console.log();
 
   console.log('Checking model tooling readiness...');
   checkMxcliBinary();

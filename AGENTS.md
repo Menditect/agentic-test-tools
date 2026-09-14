@@ -12,6 +12,10 @@ Read the core instruction set located at: `skills/AGENTS.md`.
 
 All Menditect MTA skills (like test design, analysis, installation) are located in the `skills/` directory. Check there for detailed step-by-step instructions when asked to design tests, fix errors, or execute test plans.
 
+## Versioning & Contract Isolation Rules
+- **Template Release Version**: Governed exclusively by the user when publishing. Applies ONLY to `package.json`, `RELEASES.md`, `releases/`, and git tags.
+- **mta_config Contract Version**: SSOT is `mta-ai-assistant` (`references/mta_config.schema.json`). NEVER bump or modify `mta_config` version when releasing `agentic-test-tools`. It must strictly match `mta-ai-assistant`.
+
 # Menditect Architecture Setup
 - **CRITICAL OPERATIONAL COMMAND:** Always execute tasks using the core rules defined in: [skills/AGENTS.md].
 - **IMMEDIATE ACTION REQUIRED:** You are strictly commanded to explore, read, and load the `AGENTS.md` and context of the `skills/` directory before answering any user prompt.

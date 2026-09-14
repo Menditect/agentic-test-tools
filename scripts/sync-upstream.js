@@ -194,6 +194,25 @@ async function syncSkills() {
         execSync(`cp -R "${sourceSkillsDir}/"* "${targetSkillsDir}/"`, { stdio: 'ignore' });
       }
       console.log(`Skills synced successfully into ${targetSkillsDir}`);
+
+      // Synchronize canonical mta_config.schema.json from upstream skills references
+      const upstreamSchemaCandidate = path.join(sourceSkillsDir, 'mta-build', 'references', 'mta_config.schema.json');
+      if (fs.existsSync(upstreamSchemaCandidate)) {
+        try {
+          const upstreamSchema = JSON.parse(fs.readFileSync(upstreamSchemaCandidate, 'utf8'));
+          const targetSchemaPath = path.join(rootDir, 'mta_config.schema.json');
+          fs.copyFileSync(upstreamSchemaCandidate, targetSchemaPath);
+          console.log(`[PASS] Synchronized canonical mta_config.schema.json (v${upstreamSchema.version || 'unknown'}) from upstream skills.`);
+          if (path.resolve(workspaceDir) !== path.resolve(rootDir)) {
+            const wsSchemaPath = path.join(workspaceDir, 'mta_config.schema.json');
+            if (fs.existsSync(wsSchemaPath)) {
+              fs.copyFileSync(upstreamSchemaCandidate, wsSchemaPath);
+            }
+          }
+        } catch (schemaErr) {
+          console.warn(`[WARN] Could not update mta_config.schema.json from upstream: ${schemaErr.message}`);
+        }
+      }
     } else {
       console.log('AgenticTestSkills directory not found in repository.');
     }

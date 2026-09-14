@@ -104,6 +104,21 @@ No breaking changes. Run \`npm run update:skills\` and \`npm run update:mxcli\` 
   fs.writeFileSync(packageJsonFile, JSON.stringify(pkg, null, 2) + '\n', 'utf8');
   console.log(`Updated package.json version to ${rawVersion}`);
 
+  // Display mta_config contract independence guardrail
+  const schemaPath = path.join(rootDir, 'mta_config.schema.json');
+  let schemaVersion = 'unknown';
+  if (fs.existsSync(schemaPath)) {
+    try {
+      const schema = JSON.parse(fs.readFileSync(schemaPath, 'utf8'));
+      schemaVersion = schema.version || 'unknown';
+    } catch (e) {}
+  }
+  console.log(`\n[CONTRACT GUARDRAIL]`);
+  console.log(`  The mta_config contract version is currently v${schemaVersion}.`);
+  console.log(`  This contract is governed independently by mta-ai-assistant (agentic-test-skills).`);
+  console.log(`  DO NOT modify mta_config.schema.json or the contract sections in README.md`);
+  console.log(`  during template releases. Only package.json, RELEASES.md, and releases/${version}.md apply.`);
+
   console.log(`\nRelease ${version} prepared successfully.`);
   console.log('Next steps:');
   console.log(`  1. Review and edit releases/${version}.md`);
