@@ -39,7 +39,63 @@ function getLatestGitCommits() {
   }
 }
 
+function checkBoundaryPreflight() {
+  const forbiddenPatterns = ['mta-ai-assistant', 'mta_ai_assistant'];
+  const targetScanDirs = ['releases', 'docs'];
+  const targetScanFiles = ['README.md', 'mta_config.schema.json', 'package.json'];
+  const violations = [];
+
+  for (const dirName of targetScanDirs) {
+    const dirPath = path.join(rootDir, dirName);
+    if (!fs.existsSync(dirPath)) continue;
+    const entries = fs.readdirSync(dirPath, { withFileTypes: true });
+    for (const entry of entries) {
+      if (entry.isFile()) {
+        const filePath = path.join(dirPath, entry.name);
+        try {
+          const content = fs.readFileSync(filePath, 'utf8');
+          const lines = content.split(/\r?\n/);
+          lines.forEach((line, idx) => {
+            for (const term of forbiddenPatterns) {
+              if (line.toLowerCase().includes(term)) {
+                violations.push({ file: path.relative(rootDir, filePath), line: idx + 1, term, snippet: line.trim() });
+              }
+            }
+          });
+        } catch (e) {}
+      }
+    }
+  }
+
+  for (const fileName of targetScanFiles) {
+    const filePath = path.join(rootDir, fileName);
+    if (!fs.existsSync(filePath)) continue;
+    try {
+      const content = fs.readFileSync(filePath, 'utf8');
+      const lines = content.split(/\r?\n/);
+      lines.forEach((line, idx) => {
+        for (const term of forbiddenPatterns) {
+          if (line.toLowerCase().includes(term)) {
+            violations.push({ file: fileName, line: idx + 1, term, snippet: line.trim() });
+          }
+        }
+      });
+    } catch (e) {}
+  }
+
+  return violations;
+}
+
 async function run() {
+  const boundaryViolations = checkBoundaryPreflight();
+  if (boundaryViolations.length > 0) {
+    console.error('\n[RELEASE ABORTED] Public boundary violations detected:');
+    boundaryViolations.forEach(v => console.error(`  - ${v.file}:${v.line} -> "${v.snippet}"`));
+    console.error('All files, contracts, and skills must refer to official public repository "agentic-test-skills".');
+    console.error('Please fix the above references before publishing a release.\n');
+    process.exit(1);
+  }
+
   const pkg = JSON.parse(fs.readFileSync(packageJsonFile, 'utf8'));
   const currentVersion = pkg.version || '1.0.0';
 

@@ -238,6 +238,78 @@ function checkSecurityHygiene() {
   }
 }
 
+function checkPublicBoundaryHygiene() {
+  console.log('Checking public boundary hygiene and upstream attribution...');
+  const forbiddenPatterns = [
+    { term: 'mta-ai-assistant', desc: 'Internal skills build repository reference' },
+    { term: 'mta_ai_assistant', desc: 'Internal skills build repository identifier' }
+  ];
+
+  const targetScanDirs = ['releases', 'docs'];
+  const targetScanFiles = ['README.md', 'mta_config.schema.json', 'package.json'];
+  const violations = [];
+
+  for (const dirName of targetScanDirs) {
+    const dirPath = path.join(rootDir, dirName);
+    if (!fs.existsSync(dirPath)) continue;
+    const entries = fs.readdirSync(dirPath, { withFileTypes: true });
+    for (const entry of entries) {
+      if (entry.isFile()) {
+        const filePath = path.join(dirPath, entry.name);
+        try {
+          const content = fs.readFileSync(filePath, 'utf8');
+          const lines = content.split(/\r?\n/);
+          lines.forEach((line, idx) => {
+            for (const pat of forbiddenPatterns) {
+              if (line.toLowerCase().includes(pat.term)) {
+                violations.push({
+                  file: path.relative(rootDir, filePath),
+                  line: idx + 1,
+                  desc: pat.desc,
+                  snippet: line.trim()
+                });
+              }
+            }
+          });
+        } catch (e) {}
+      }
+    }
+  }
+
+  for (const fileName of targetScanFiles) {
+    const filePath = path.join(rootDir, fileName);
+    if (!fs.existsSync(filePath)) continue;
+    try {
+      const content = fs.readFileSync(filePath, 'utf8');
+      const lines = content.split(/\r?\n/);
+      lines.forEach((line, idx) => {
+        for (const pat of forbiddenPatterns) {
+          if (line.toLowerCase().includes(pat.term)) {
+            violations.push({
+              file: fileName,
+              line: idx + 1,
+              desc: pat.desc,
+              snippet: line.trim()
+            });
+          }
+        }
+      });
+    } catch (e) {}
+  }
+
+  if (violations.length === 0) {
+    console.log('  [PASS] All public release notes, docs, and schemas correctly attribute official upstream "agentic-test-skills".');
+    return true;
+  } else {
+    console.error('  [FAIL] Public Boundary Violation: Reference to internal build repository detected:');
+    for (const v of violations) {
+      console.error(`    - ${v.file}:${v.line} [${v.desc}] -> "${v.snippet}"`);
+    }
+    console.error('  Official upstream repository is "agentic-test-skills". Please fix before releasing.\n');
+    return false;
+  }
+}
+
 function checkAppInstances() {
   const instances = config.app_instances || [];
   const defaultToken = config.default_app_instance_token || process.env.MTA_APP_INSTANCE_TOKEN;
@@ -348,6 +420,9 @@ async function run() {
   console.log();
 
   checkSecurityHygiene();
+  console.log();
+
+  checkPublicBoundaryHygiene();
   console.log();
 
   checkAppInstances();
