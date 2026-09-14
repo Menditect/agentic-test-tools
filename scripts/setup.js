@@ -43,7 +43,6 @@ function normalizeConfigAliases(cfg) {
   normalized.mta_base_url = cfg.mta_base_url || cfg.mta_url || cfg.mtaUrl || '';
   normalized.default_app_instance_token = cfg.default_app_instance_token || (cfg.app_instances && cfg.app_instances[0]?.token) || cfg.instance_token || '';
   normalized.execution_plans_dir = cfg.execution_plans_dir || (cfg.mta_output_path ? path.join(cfg.mta_output_path, 'execution-plans') : '');
-  normalized.execution_plans_archive_dir = cfg.execution_plans_archive_dir || (normalized.execution_plans_dir ? path.join(normalized.execution_plans_dir, 'archive') : '');
   return normalized;
 }
 
@@ -679,14 +678,11 @@ fi
 function ensureExecutionPlanFolders(targetDir) {
   const menditectOutputDir = path.join(targetDir, 'menditect-output');
   const plansDir = path.join(menditectOutputDir, 'execution-plans');
-  const archiveDir = path.join(plansDir, 'archive');
   if (!fs.existsSync(menditectOutputDir)) fs.mkdirSync(menditectOutputDir, { recursive: true });
   if (!fs.existsSync(plansDir)) fs.mkdirSync(plansDir, { recursive: true });
-  if (!fs.existsSync(archiveDir)) fs.mkdirSync(archiveDir, { recursive: true });
-  console.log(`Ensured execution plan folders at:`);
+  console.log(`Ensured execution plan folder at:`);
   console.log(`  - ${plansDir}`);
-  console.log(`  - ${archiveDir}`);
-  return { menditectOutputDir, plansDir, archiveDir };
+  return { menditectOutputDir, plansDir };
 }
 
 function getMenditectSetupBlock(appName, mtaUrl, skillsStyle, appInstances = [], defaultInstanceName = '') {
@@ -808,7 +804,7 @@ async function run() {
   console.log('      * .mxcli/ (local operational queue for decisions and caching; git-ignored)');
   console.log('      * .vscode/, .cursor/, .claude/ IDE configuration files');
   console.log('      * AGENTS.md, CLAUDE.md, GEMINI.md');
-  console.log('      * menditect-output/execution-plans/ and menditect-output/execution-plans/archive/');
+  console.log('      * menditect-output/execution-plans/ (in-place plan updates tracked via Git)');
   console.log('      * bin/mxcli.exe and root ./mxcli runner scripts');
   console.log('    - Git Impact:');
   console.log('      * ZERO files created or modified in your Mendix project repository.');
@@ -822,7 +818,7 @@ async function run() {
   console.log('      * Directives: Appends Menditect Setup to project AGENTS.md (existing rules preserved)');
   console.log('      * IDE Configs: Merged into .vscode/, .cursor/, and .claude/ (preserves existing permissions)');
   console.log('      * Local Runners: mxcli.bat and ./mxcli deployed in project root');
-  console.log('      * Execution Plans: menditect-output/execution-plans/ and menditect-output/execution-plans/archive/');
+  console.log('      * Execution Plans: menditect-output/execution-plans/ (in-place plan updates tracked via Git)');
   console.log('    - Git Impact (Important for Mendix Repositories):');
   console.log('      * Typical Mendix projects have their own Git repositories.');
   console.log('      * All files created will be tracked by your Mendix project Git repository,');
@@ -1092,8 +1088,8 @@ async function run() {
     : (existingConfig.application_name || (projectDir ? path.basename(projectDir) : 'MyApp'));
   const appName = await ask('Application Name', defaultAppName);
 
-  // 5. Ensure Execution Plans Storage and Archive Folders
-  const { menditectOutputDir, plansDir, archiveDir } = ensureExecutionPlanFolders(workspaceDir);
+  // 5. Ensure Execution Plans Storage Folder
+  const { menditectOutputDir, plansDir } = ensureExecutionPlanFolders(workspaceDir);
 
   // 6. Save Configuration to mta_config.json (tokens stored in .env to prevent credential leakage)
   const sanitizedInstances = appInstances.map(inst => {
@@ -1117,7 +1113,6 @@ async function run() {
     skills_style: skillsStyle,
     mta_output_path: menditectOutputDir,
     execution_plans_dir: plansDir,
-    execution_plans_archive_dir: archiveDir,
     mendix_version: detectedVersion || '',
     application_name: appName,
     mta_base_url: mtaUrl,
@@ -1212,14 +1207,53 @@ MTA_APP_INSTANCE_DEFAULT="${defaultInstanceName}"
   console.log(` Active App Instance:     ${defaultInstanceName}`);
   console.log(` App Instances Total:     ${appInstances.length}`);
   console.log(` Execution plans:         ${plansDir}`);
-  console.log(` Execution plans archive: ${archiveDir}`);
   console.log(' Next step: run "npm run update" to sync skills and binaries.');
   console.log('======================================================');
   if (rl) rl.close();
 }
 
+function runDirectivesOnly() {
+  const rootConfigPath = path.join(toolsRootDir, 'mta_config.json');
+  let config = {};
+  if (fs.existsSync(rootConfigPath)) {
+    try {
+      config = JSON.parse(fs.readFileSync(rootConfigPath, 'utf8'));
+    } catch (e) {}
+  }
+  if (normalizeConfigAliases) {
+    config = normalizeConfigAliases(config);
+  }
+
+  const workspaceDir = config.workspace_dir || toolsRootDir;
+  const wsConfigPath = path.join(workspaceDir, 'mta_config.json');
+  if (fs.existsSync(wsConfigPath) && path.resolve(wsConfigPath) !== path.resolve(rootConfigPath)) {
+    try {
+      const wsConfig = JSON.parse(fs.readFileSync(wsConfigPath, 'utf8'));
+      config = { ...config, ...(normalizeConfigAliases ? normalizeConfigAliases(wsConfig) : wsConfig) };
+    } catch (e) {}
+  }
+
+  const appName = config.application_name || 'MyApp';
+  const mtaUrl = config.mta_base_url || 'https://mta-trial.mendixcloud.com';
+  const skillsStyle = config.skills_style || 'standard';
+  const appInstances = config.app_instances || [];
+  const defaultInstanceName = config.default_app_instance || '';
+
+  console.log(`[RESTORE] Restoring Menditect Architecture Setup directives in ${workspaceDir}...`);
+  updateAgentDirectives(workspaceDir, appName, mtaUrl, skillsStyle, appInstances, defaultInstanceName);
+  if (path.resolve(workspaceDir) !== path.resolve(toolsRootDir)) {
+    updateAgentDirectives(toolsRootDir, appName, mtaUrl, skillsStyle, appInstances, defaultInstanceName);
+  }
+  console.log(`[PASS] Agent directives successfully restored across AGENTS.md, CLAUDE.md, and GEMINI.md.`);
+}
+
 if (require.main === module) {
-  run();
+  const args = process.argv.slice(2);
+  if (args.includes('--directives-only') || args.includes('--directives')) {
+    runDirectivesOnly();
+  } else {
+    run();
+  }
 } else {
   module.exports = {
     parseInstanceSelection,
@@ -1233,6 +1267,8 @@ if (require.main === module) {
     findMpr,
     detectMendixVersion,
     isVersion1112OrHigher,
-    normalizeConfigAliases
+    normalizeConfigAliases,
+    ensureExecutionPlanFolders,
+    runDirectivesOnly
   };
 }

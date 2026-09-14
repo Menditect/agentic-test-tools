@@ -267,6 +267,39 @@ function checkSecurityHygiene() {
   }
 }
 
+function checkAgentDirectives() {
+  console.log('Checking agent directives integrity...');
+  const wsDir = config.workspace_dir || rootDir;
+  const targetFiles = [
+    { name: 'AGENTS.md', path: path.join(wsDir, 'AGENTS.md') },
+    { name: 'CLAUDE.md', path: path.join(wsDir, 'CLAUDE.md') },
+    { name: 'GEMINI.md', path: path.join(wsDir, 'GEMINI.md') }
+  ];
+
+  let allIntact = true;
+  for (const item of targetFiles) {
+    if (fs.existsSync(item.path)) {
+      try {
+        const content = fs.readFileSync(item.path, 'utf8');
+        const hasSetup = content.includes('# Menditect Architecture Setup');
+        const hasApp = content.includes('Application name is:');
+        const hasUrl = content.includes('MTA Url:');
+        if (!hasSetup || !hasApp || !hasUrl) {
+          allIntact = false;
+          console.warn(`  [WARN] ${item.name} is missing the Menditect Architecture Setup directives!`);
+          console.warn(`         This can occur if "mxcli init" was executed directly.`);
+          console.warn(`         Run "npm run setup:directives" to restore them immediately.`);
+        } else {
+          console.log(`  [PASS] ${item.name} has Menditect directives intact.`);
+        }
+      } catch (e) {
+        console.warn(`  [WARN] Could not read ${item.name}: ${e.message}`);
+      }
+    }
+  }
+  return allIntact;
+}
+
 function checkPublicBoundaryHygiene() {
   console.log('Checking public boundary hygiene and upstream attribution...');
   const forbiddenPatterns = [
@@ -449,6 +482,9 @@ async function run() {
   console.log();
 
   checkSecurityHygiene();
+  console.log();
+
+  checkAgentDirectives();
   console.log();
 
   checkPublicBoundaryHygiene();

@@ -139,7 +139,7 @@ The setup wizard automatically:
 
 All Menditect Agentic Test Skills strictly consume `mta_config.json` as the primary **Single Source of Truth (SSOT)** for workspace paths, MTA server endpoints, model discovery sources, and application instances. Sensitive authentication tokens (`MTA_MCP_AUTH_HEADER`, `PLUGIN_MCP_TOKEN`) are securely maintained in `.env`.
 
-### Canonical JSON Structure (v1.4.0)
+### Canonical JSON Structure (v1.5.0)
 
 ```json
 {
@@ -150,7 +150,6 @@ All Menditect Agentic Test Skills strictly consume `mta_config.json` as the prim
   "skills_style": "standard",
   "mta_output_path": "C:\Projecten\mta-trial\menditect-output",
   "execution_plans_dir": "C:\Projecten\mta-trial\menditect-output\execution-plans",
-  "execution_plans_archive_dir": "C:\Projecten\mta-trial\menditect-output\execution-plans\archive",
   "mendix_version": "11.12.011",
   "application_name": "MyMendixApp",
   "mta_base_url": "https://mta-instance.mendixcloud.com",
@@ -179,8 +178,12 @@ All Menditect Agentic Test Skills strictly consume `mta_config.json` as the prim
 
 | Field | Type | Description |
 | :--- | :--- | :--- |
-| `mta_base_url` | string (URI) | Base URL of the Menditect Test Automation web portal (e.g. `https://mta-instance.mendixcloud.com`). Used for clickable web navigation links. |
-| `mcp_endpoint` | string (URI) | MCP endpoint URL for the MTA primitive tools server (`[mta_base_url]/primitivetools/mcp`). |
+| `mta_base_url` | string (URI) | **(Required)** Base URL of the Menditect Test Automation web portal (e.g. `https://mta-instance.mendixcloud.com`). Used for clickable web navigation links. |
+| `mcp_endpoint` | string (URI) | **(Required)** MCP endpoint URL for the MTA primitive tools server (`[mta_base_url]/primitivetools/mcp`). |
+| `application_name` | string | **(Required)** Name of the target Mendix application in MTA. Eliminates manual application disambiguation prompts. |
+| `execution_plans_dir` | string | **(Required)** Directory where active Execution Plans (`EP_*.md`) are stored and updated in-place. |
+| `mendix_project_dir` | string | **(Required)** Absolute path to the target Mendix project folder containing the app model. |
+| `mendix_mpr_path` | string | Absolute path to the Mendix `.mpr` project file used by `mxcli`. |
 | `mta_auth_header` | string | *(Deprecated)* HTTP Authorization header (`Bearer <session_token>`) for authenticating with MTA server. Stored in `.env` as `MTA_MCP_AUTH_HEADER`. |
 | `plugin_mcp_url` | string (URI) | Local runtime plugin MCP endpoint (`[ApplicationRootUrl]/plugin/mcp`) for sub-second in-memory exploratory test execution. |
 | `plugin_mcp_token` | string | *(Deprecated)* Authorization header (e.g. `Bearer 1`) for the runtime plugin MCP endpoint. Stored in `.env` as `PLUGIN_MCP_TOKEN`. |
@@ -188,10 +191,7 @@ All Menditect Agentic Test Skills strictly consume `mta_config.json` as the prim
 | `default_app_instance` | string | Name of the primary default application runtime instance. |
 | `default_app_instance_token` | string (UUID) | MTA Application Instance Token used for executing tests via `ExecuteTest`. Eliminates manual prompts. |
 | `model_source` | string | AST discovery mechanism: `"mxcli"` (headless offline `.mpr` inspection) or `"studiopro"` (Studio Pro live MCP server). |
-| `mendix_project_dir` | string | Absolute path to the target Mendix project folder. |
-| `mendix_mpr_path` | string | Absolute path to the Mendix `.mpr` project file used by `mxcli`. |
-| `execution_plans_dir` | string | Storage directory for draft and approved Execution Plans (`EP_*.md`). |
-| `execution_plans_archive_dir` | string | Storage directory for superseded Execution Plan revisions. |
+| `execution_plans_archive_dir` | string | *(Deprecated)* Formerly used for archiving superseded plans. Replaced by in-place plan revisions tracked in Git. |
 | `workspace_type` | string | Mode where the agent runs: `"clone_root"` (isolated tools workspace), `"mendix_project"` (direct Mendix project), or `"custom"`. |
 | `skills_style` | string | Installation style: `"standard"` (project-level `skills/`) or `"mendix_module"` (Mendix 11.12+ `skillssource/_modules/menditect_agentictestskills`). |
 
@@ -217,6 +217,14 @@ When resolving configuration settings, AI agents must evaluate sources in this s
 
 ---
 
+## Skills Immutability & Customization Architecture
+
+- **Orphan Prevention via Full Replacement**: When updating skills via `npm run update:skills` (or `npm run update`), the skills directory is completely purged and replaced with the official upstream release. This guarantees no obsolete or orphaned skill files remain after upstream refactoring.
+- **No Inline Modifications in MTA Skills**: Never modify official MTA skill files inline. Any custom changes made directly within official MTA skills will be overwritten and erased upon the next update.
+- **Custom Skills Isolation**: If your organization requires custom testing or domain skills, always create them as separate, independent skill folders (e.g. `skills/my-org-custom-skill/`) alongside the official MTA skills.
+
+---
+
 ### Workspace Modes: Choosing Where to Run Your Agent
 
 You can choose where your AI agent (VS Code, Cursor, Claude Code) opens and executes:
@@ -228,7 +236,7 @@ You can choose where your AI agent (VS Code, Cursor, Claude Code) opens and exec
 | **MTA Skills Location** | `<clone_root>/skills/` | Module skills or `./skills/` | `<custom>/skills/` |
 | **Mendix 11.12+ Module Support** | N/A | Integrates with `skillssource/_modules` (requires Mendix 11.12+) | N/A |
 | **Local ./mxcli Runner** | Root `./mxcli` | Local `./mxcli` in Mendix project | Local `./mxcli` in custom dir |
-| **Execution Plans Folder** | `<clone_root>/menditect-output/execution-plans/` (+ `archive/`) | `<mendix_project>/menditect-output/execution-plans/` (+ `archive/`) | `<custom>/menditect-output/execution-plans/` (+ `archive/`) |
+| **Execution Plans Folder** | `<clone_root>/menditect-output/execution-plans/` | `<mendix_project>/menditect-output/execution-plans/` | `<custom>/menditect-output/execution-plans/` |
 | **Git Repository Impact** | Zero impact on Mendix repo | Files tracked & committed in Mendix repo | Isolated to custom dir |
 
 #### Exact File Placement by Option
@@ -237,7 +245,6 @@ You can choose where your AI agent (VS Code, Cursor, Claude Code) opens and exec
 | :--- | :--- | :--- | :--- |
 | **MTA Skills** | `agentic-test-tools/skills/` | `skillssource/_modules/menditect_agentictestskills/` (if Mendix 11.12+ and module installed) or `skills/` | `<custom>/skills/` |
 | **Execution Plans** | `agentic-test-tools/menditect-output/execution-plans/` | `<mendix_project>/menditect-output/execution-plans/` | `<custom>/menditect-output/execution-plans/` |
-| **Archived Plans** | `agentic-test-tools/menditect-output/execution-plans/archive/` | `<mendix_project>/menditect-output/execution-plans/archive/` | `<custom>/menditect-output/execution-plans/archive/` |
 | **Agent Directives** | `AGENTS.md`, `CLAUDE.md`, `GEMINI.md` | Appends Menditect block to existing `AGENTS.md` (or creates it) | Appends or creates `AGENTS.md` |
 | **IDE MCP Configs** | `.vscode/mcp.json`, `.cursor/mcp.json` | Merged into `<mendix_project>/.vscode/` and `.cursor/` | Merged into `<custom>/.vscode/` and `.cursor/` |
 | **Tool Permissions** | `.claude/settings.json` | Merged into `<mendix_project>/.claude/settings.json` (preserves existing permissions) | Merged into `<custom>/.claude/settings.json` |
@@ -306,7 +313,20 @@ The verifier audits:
 - `mta_config.json` compliance against the schema contract.
 - Availability of the `mxcli` binary, initialization of Mendix AI skills (`.ai-context/skills/`), and presence of the `.mxcli/` operational staging folder.
 - Security hygiene (verifies no sensitive Bearer tokens are stored in `.vscode/settings.json` or unignored in Git).
+- Agent directives integrity (verifies `# Menditect Architecture Setup` blocks are intact).
 - Live preflight connectivity for both `mta` and `mta_plugin` MCP endpoints.
+
+### Restoring Overwritten Directives (`npm run setup:directives`)
+
+If you upgraded `mxcli` or accidentally ran `mxcli init` directly in your workspace, `mxcli` may overwrite your root `AGENTS.md` or `CLAUDE.md` with default templates, removing the `# Menditect Architecture Setup` connection block.
+
+You can instantly restore your directives without running through the interactive setup wizard:
+
+```bash
+npm run setup:directives
+```
+
+This reads your existing `mta_config.json` and immediately re-injects the required application name, MTA URLs, and runtime instance tokens into `AGENTS.md`, `CLAUDE.md`, and `GEMINI.md`.
 
 ---
 
@@ -316,7 +336,7 @@ Because Menditect Skills and Mendix Labs `mxcli` are maintained by different org
 
 | Component | Maintained By | Update Frequency | Command (npm) | Command (PowerShell) | What It Does |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **MTA Skills** (`./skills/`) | **Menditect B.V.** | **Frequent** (new patterns, MTA features) | `npm run update:skills` | `.\update.ps1 -Skills` | Pulls latest test design and automation skills from `agentic-test-skills`. |
+| **MTA Skills** (`./skills/`) | **Menditect B.V.** | **Frequent** (new patterns, MTA features) | `npm run update:skills` | `.\update.ps1 -Skills` | Pulls latest skills from `agentic-test-skills` (fully replaces directory to eliminate orphans). |
 | **`mxcli` & AI Skills** (`./bin/`, `.ai-context/`) | **Mendix Labs** | **Periodic** (new Mendix version support) | `npm run update:mxcli` | `.\update.ps1 -Mxcli` | Downloads latest binary and automatically runs `mxcli init --sync-skills` across active workspaces without touching custom directives. |
 | **Everything** | Both | When updating entire workspace | `npm run update` | `.\update.ps1` | Runs both skill updates and mxcli binary synchronization in sequence. |
 

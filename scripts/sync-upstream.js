@@ -139,13 +139,11 @@ async function syncSkills() {
   let targetSkillsDir = config.skills_dir || path.join(rootDir, 'skills');
   const workspaceDir = config.workspace_dir || rootDir;
 
-  // Ensure execution-plans and archive folders exist in workspace (menditect-output/execution-plans)
+  // Ensure execution-plans folder exists in workspace (menditect-output/execution-plans)
   const menditectOutputDir = config.mta_output_path || path.join(workspaceDir, 'menditect-output');
   const plansDir = config.execution_plans_dir || path.join(menditectOutputDir, 'execution-plans');
-  const archiveDir = config.execution_plans_archive_dir || path.join(plansDir, 'archive');
   if (!fs.existsSync(menditectOutputDir)) fs.mkdirSync(menditectOutputDir, { recursive: true });
   if (!fs.existsSync(plansDir)) fs.mkdirSync(plansDir, { recursive: true });
-  if (!fs.existsSync(archiveDir)) fs.mkdirSync(archiveDir, { recursive: true });
 
   // Check if Marketplace module was recently added and offer/perform automatic migration (requires Mendix 11.12+)
   if (config.workspace_type === 'mendix_project' && config.skills_style === 'standard') {
@@ -180,19 +178,23 @@ async function syncSkills() {
   }
 
   console.log(`Syncing skills from Menditect/agentic-test-skills into ${targetSkillsDir}...`);
+  console.log(`[WARNING] Complete skills replacement: all files in ${targetSkillsDir} will be replaced with the latest upstream release to prevent orphan skills.`);
+  console.log(`          Any inline modifications to MTA skills will be erased.`);
+  console.log(`          Custom skills should be added as separate, new skills rather than editing MTA skills inline.\n`);
+
   const tmpDir = path.join(os.tmpdir(), 'agentic-test-skills-tmp-' + Date.now());
   try {
     execSync(`git clone --depth 1 https://github.com/Menditect/agentic-test-skills.git "${tmpDir}"`, { stdio: 'ignore' });
     
     const sourceSkillsDir = path.join(tmpDir, 'AgenticTestSkills');
     if (fs.existsSync(sourceSkillsDir)) {
-      if (!fs.existsSync(targetSkillsDir)) fs.mkdirSync(targetSkillsDir, { recursive: true });
-      
-      if (process.platform === 'win32') {
-        execSync(`xcopy /E /I /Y "${sourceSkillsDir}\\*" "${targetSkillsDir}\\"`, { stdio: 'ignore' });
-      } else {
-        execSync(`cp -R "${sourceSkillsDir}/"* "${targetSkillsDir}/"`, { stdio: 'ignore' });
+      // Clean out existing files/subdirectories completely to prevent orphan skills
+      if (fs.existsSync(targetSkillsDir)) {
+        fs.rmSync(targetSkillsDir, { recursive: true, force: true });
       }
+      fs.mkdirSync(targetSkillsDir, { recursive: true });
+      
+      fs.cpSync(sourceSkillsDir, targetSkillsDir, { recursive: true });
       console.log(`Skills synced successfully into ${targetSkillsDir}`);
 
       // Synchronize canonical mta_config.schema.json from upstream skills references
