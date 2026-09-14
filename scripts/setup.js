@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const readline = require('readline');
-const { execSync } = require('child_process');
+const { execSync, spawn } = require('child_process');
 
 let rl = null;
 
@@ -324,6 +324,84 @@ function initializeMxcli(targetDir, mprPath, optionalBin, options = {}) {
     console.warn(`[WARN] Could not complete mxcli initialization in ${targetDir}: ${err.message}`);
     return false;
   }
+}
+
+async function buildProjectCatalog(mprPath, optionalBin, options = {}) {
+  if (!mprPath || !fs.existsSync(mprPath)) return false;
+
+  const mxcliBin = optionalBin || findMxcliBinary(mprPath);
+  if (!mxcliBin) {
+    console.log('[NOTICE] mxcli binary not found. Skipping catalog build.');
+    return false;
+  }
+
+  const projectDir = path.dirname(mprPath);
+  const dotMxcliDir = path.join(projectDir, '.mxcli');
+  const catalogDbPath = path.join(dotMxcliDir, 'catalog.db');
+
+  if (!fs.existsSync(dotMxcliDir)) {
+    try { fs.mkdirSync(dotMxcliDir, { recursive: true }); } catch (e) {}
+  }
+
+  console.log('\n--- Mendix Project Catalog Generation (.mxcli/catalog.db) ---');
+  console.log('[INFO] The project catalog powers MTA test design, caller/callee analysis, and full-text code search.');
+  console.log('[WARNING] Performance advisory: Compiling complete MDL source definitions (REFRESH CATALOG SOURCE)');
+  console.log('          reads the contents of every document. On large projects (thousands of microflows/pages),');
+  console.log('          this process can take multiple minutes or even up to 1 hour.');
+
+  let choice = 'Y';
+  if (options.askFn) {
+    const promptText = '\nBuild project catalog with full MDL source now? [Y/n/fast] (Y = full with source, fast = structure only, n = skip)';
+    const ans = await options.askFn(promptText, 'Y');
+    choice = ans.trim() || 'Y';
+  }
+
+  const normalized = choice.toLowerCase();
+  if (normalized.startsWith('n')) {
+    console.log('[INFO] Catalog generation skipped.');
+    console.log('[INFO] You can build it anytime by running:');
+    console.log('       ./mxcli -c "REFRESH CATALOG SOURCE FORCE;"');
+    return false;
+  }
+
+  let commandToRun = 'REFRESH CATALOG SOURCE FORCE;';
+  let modeName = 'full source definitions (deep extraction)';
+  if (normalized.startsWith('f')) {
+    commandToRun = 'REFRESH CATALOG FULL FORCE;';
+    modeName = 'structural metadata & activities (fast mode)';
+  }
+
+  console.log(`\nCompiling catalog in ${modeName}...`);
+  console.log(`Executing: "${mxcliBin}" -p "${mprPath}" -c "${commandToRun}"\n`);
+
+  return new Promise((resolve) => {
+    const proc = spawn(mxcliBin, ['-p', mprPath, '-c', commandToRun], {
+      stdio: 'inherit',
+      shell: false
+    });
+
+    proc.on('close', (code) => {
+      if (code === 0) {
+        if (fs.existsSync(catalogDbPath)) {
+          const stats = fs.statSync(catalogDbPath);
+          const sizeMb = (stats.size / (1024 * 1024)).toFixed(2);
+          console.log(`\n[PASS] Catalog compiled successfully (${sizeMb} MB) at ${catalogDbPath}`);
+        } else {
+          console.log('\n[PASS] Catalog refresh command completed.');
+        }
+        resolve(true);
+      } else {
+        console.warn(`\n[WARN] Catalog build exited with code ${code}.`);
+        console.warn(`       You can retry manually via: ./mxcli -c "${commandToRun}"`);
+        resolve(false);
+      }
+    });
+
+    proc.on('error', (err) => {
+      console.warn(`\n[WARN] Failed to spawn mxcli for catalog refresh: ${err.message}`);
+      resolve(false);
+    });
+  });
 }
 
 function inspectMendixMtaSettings(mprPath, optionalBin) {
@@ -1119,7 +1197,12 @@ MTA_APP_INSTANCE_DEFAULT="${defaultInstanceName}"
   const mprFileName = mprPath ? path.basename(mprPath) : '';
   deployMxcliWrappers(workspaceDir, mprFileName);
 
-  // 11. Update Agent Directives in workspaceDir
+  // 11. Build Mendix Project Catalog (catalog.db) for MTA test automation & code search
+  if (mprPath && fs.existsSync(mprPath)) {
+    await buildProjectCatalog(mprPath, null, { askFn: ask });
+  }
+
+  // 12. Update Agent Directives in workspaceDir
   updateAgentDirectives(workspaceDir, appName, mtaUrl, skillsStyle, appInstances, defaultInstanceName);
 
   console.log('\n======================================================');
@@ -1143,6 +1226,7 @@ if (require.main === module) {
     inspectMendixMtaSettings,
     findMxcliBinary,
     initializeMxcli,
+    buildProjectCatalog,
     updateAgentDirectives,
     getMenditectSetupBlock,
     formatBearerToken,

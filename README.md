@@ -130,6 +130,7 @@ The setup wizard automatically:
 3. Generates and merges IDE configurations in `.vscode/mcp.json`, `.vscode/settings.json`, `.cursor/mcp.json`, and `.claude/settings.json` in your selected workspace without overwriting existing settings or permissions.
 4. Appends the **Menditect Architecture Setup** block (including the application instances mapping) to the project-level `AGENTS.md` (and other agent files), preserving existing rules.
 5. Deploys local `./mxcli` wrappers into your workspace so model inspection commands work out of the box.
+6. Compiles the Mendix project catalog (`.mxcli/catalog.db`) with full model metadata, activities, widgets, references, and MDL source definitions (`REFRESH CATALOG SOURCE FORCE`), providing advance duration warnings and interactive options for large projects.
 
 ---
 
@@ -359,6 +360,26 @@ Once your agent is running with MTA tools loaded, you can ask it to perform test
   > "Run the test suite 'OrderProcessing' and analyze the failure reasons if any steps fail."
 - **Install & Verify MTA Plugin**:
   > "Check if the MTA Plugin is active on localhost:8081 and verify that test execution tools respond."
+
+---
+
+## Mendix Model Tooling & Project Catalog
+
+The workspace includes wrappers (`./mxcli.bat` on Windows, `./mxcli` on Linux/macOS) that automatically inject your configured project path:
+
+```bash
+# Model inspection
+./mxcli describe microflow Module.MicroflowName
+./mxcli describe entity Module.EntityName
+./mxcli search "Order"
+
+# Catalog management
+./mxcli -c "REFRESH CATALOG SOURCE FORCE;"   # Deep extraction with full MDL source definitions (recommended for MTA test analysis)
+./mxcli -c "REFRESH CATALOG FULL FORCE;"     # Fast structural extraction (metadata, activities, widgets, strings)
+```
+
+> [!NOTE]
+> `mxcli init` configures static AI scaffolding and skills (`.ai-context/skills/`). The SQLite database (`.mxcli/catalog.db`) is compiled via `REFRESH CATALOG`. On large enterprise applications with thousands of microflows and pages, deep extraction with `REFRESH CATALOG SOURCE` can take multiple minutes or up to 1 hour because it parses the full content of every document.
 
 ---
 

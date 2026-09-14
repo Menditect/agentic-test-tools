@@ -6,6 +6,7 @@ Please refer to `AGENTS.md` for core rules and available skills.
 When working with Mendix, remember:
 1. Always prefer using the provided `./mxcli` wrappers (or StudioPro MCP if available) over raw file searching.
 2. Read the skills in the `skills/` folder to understand MTA test execution and analysis flows.
+3. The SQLite catalog (`.mxcli/catalog.db`) powers code search and callers/callees. Rebuild via `./mxcli -c "REFRESH CATALOG SOURCE FORCE;"` (or `REFRESH CATALOG FULL FORCE;` for fast structural mode). Note: On large projects, compiling full MDL source definitions can take multiple minutes or up to 1 hour.
 
 ## Repository Architecture & Upstream SSOT
 - **Skills Build Repository (`mta-ai-assistant`)**: The internal engineering repository meant for building MTA skills (work occurs on `development`). It is NOT the public contract source.

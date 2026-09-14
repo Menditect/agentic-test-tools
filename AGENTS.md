@@ -5,6 +5,7 @@ You are operating within a Menditect Agent Workspace Template.
 ## Environment Details
 - Tools available: `mta`, `mta_plugin`, and potentially `StudioPro` (if running locally via MCP).
 - Mendix App model info: Use the `./mxcli` wrappers (e.g. `./mxcli.bat`, `./mxcli.sh`) to inspect the project. They will automatically inject the configured Mendix project path.
+- Mendix Project Catalog: The SQLite catalog (`.mxcli/catalog.db`) powers code search (`./mxcli search`), callers/callees (`./mxcli callers`), references (`./mxcli refs`), and MTA test element analysis. If missing or out-of-date, rebuild it via `./mxcli -c "REFRESH CATALOG SOURCE FORCE;"` (or `REFRESH CATALOG FULL FORCE;` for fast structural mode). Note: On large projects, compiling full MDL source definitions can take multiple minutes or up to 1 hour.
 
 ## Core Rules & Skills
 You must strictly follow the Menditect Test Automation skills.

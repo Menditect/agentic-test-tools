@@ -168,6 +168,35 @@ function checkMxcliBinary() {
     if (fs.existsSync(dotMxcliPath)) {
       console.log(`[PASS] Local mxcli working directory is present (.mxcli/).`);
     }
+
+    // Check if Mendix project catalog (.mxcli/catalog.db) is populated
+    const mendixDir = config.mendix_project_dir || (config.mendix_mpr_path ? path.dirname(config.mendix_mpr_path) : null);
+    if (mendixDir) {
+      const catalogDbPath = path.join(mendixDir, '.mxcli', 'catalog.db');
+      if (fs.existsSync(catalogDbPath)) {
+        try {
+          const stats = fs.statSync(catalogDbPath);
+          if (stats.size > 0) {
+            const sizeMb = (stats.size / (1024 * 1024)).toFixed(2);
+            const mtime = stats.mtime.toISOString().replace('T', ' ').substring(0, 19);
+            console.log(`[PASS] Mendix project catalog is active (.mxcli/catalog.db, ${sizeMb} MB, modified ${mtime}).`);
+          } else {
+            console.warn(`[WARN] Mendix project catalog exists but is empty (0 bytes) at ${catalogDbPath}.`);
+            console.warn(`       MTA test analysis and code search require the project catalog.`);
+            console.warn(`       To populate: ./mxcli -c "REFRESH CATALOG SOURCE FORCE;"`);
+            console.warn(`       (Note: On large projects, source extraction may take multiple minutes to 1 hour).`);
+          }
+        } catch (e) {
+          console.warn(`[WARN] Unable to inspect catalog.db: ${e.message}`);
+        }
+      } else {
+        console.warn(`[WARN] Mendix project catalog is not built (.mxcli/catalog.db not found in ${mendixDir}).`);
+        console.warn(`       MTA test analysis and code search require the project catalog.`);
+        console.warn(`       To generate: ./mxcli -c "REFRESH CATALOG SOURCE FORCE;"`);
+        console.warn(`       (Note: On large projects, source extraction may take multiple minutes to 1 hour).`);
+      }
+    }
+
     return true;
   } catch (e) {
     console.warn(`[WARN] mxcli binary present at ${binPath} but failed execution check: ${e.message}`);
