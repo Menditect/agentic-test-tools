@@ -7,6 +7,12 @@ const os = require('os');
 const rootDir = path.join(__dirname, '..');
 const defaultBinDir = path.join(rootDir, 'bin');
 
+let scriptVersion = '';
+try {
+  const pkg = JSON.parse(fs.readFileSync(path.join(rootDir, 'package.json'), 'utf8'));
+  if (pkg.version) scriptVersion = ` (v${pkg.version})`;
+} catch (e) {}
+
 function loadConfig() {
   const possiblePaths = [
     process.env.MTA_CONFIG_PATH,
@@ -228,7 +234,7 @@ async function syncMxcli() {
     const asset = release.assets.find(a => a.name === assetName);
     if (!asset) {
       console.log(`No mxcli binary found for ${platform} ${arch}`);
-      return;
+      return false;
     }
     
     const finalBinName = platform === 'win32' ? 'mxcli.exe' : 'mxcli';
@@ -256,12 +262,15 @@ async function syncMxcli() {
       }
       console.log(`Copied mxcli binary to ${workspaceBinDir}`);
     }
+    return true;
   } catch (err) {
     console.error('Failed to update mxcli:', err.message);
+    return false;
   }
 }
 
 async function run() {
+  console.log(`--- Menditect Workspace Update${scriptVersion} ---`);
   console.log('NOTICE: This tooling is vibe-coded and provided "AS IS" without official support.\n');
   const target = process.argv[2] || 'all';
   if (target === 'skills') {

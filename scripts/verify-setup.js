@@ -3,7 +3,14 @@ const { spawn } = require('child_process');
 const path = require('path');
 
 const proxyPath = path.join(__dirname, 'mta-proxy.js');
-const configPath = path.join(__dirname, '..', 'mta_config.json');
+const rootDir = path.join(__dirname, '..');
+const configPath = path.join(rootDir, 'mta_config.json');
+
+let scriptVersion = '';
+try {
+  const pkg = JSON.parse(fs.readFileSync(path.join(rootDir, 'package.json'), 'utf8'));
+  if (pkg.version) scriptVersion = ` (v${pkg.version})`;
+} catch (e) {}
 
 let rawConfig = {};
 try {
@@ -199,7 +206,7 @@ function verifyMode(mode) {
 }
 
 async function run() {
-  console.log('--- Menditect Workspace Verification ---\n');
+  console.log(`--- Menditect Workspace Verification${scriptVersion} ---\n`);
   const wsType = config.workspace_type || 'clone_root';
   const wsDir = config.workspace_dir || path.join(__dirname, '..');
   const skillsDir = config.skills_dir || path.join(__dirname, '..', 'skills');

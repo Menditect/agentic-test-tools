@@ -16,6 +16,11 @@ function getReadline() {
 }
 
 const toolsRootDir = path.join(__dirname, '..');
+let scriptVersion = '';
+try {
+  const pkg = JSON.parse(fs.readFileSync(path.join(toolsRootDir, 'package.json'), 'utf8'));
+  if (pkg.version) scriptVersion = ` (v${pkg.version})`;
+} catch (e) {}
 
 function ask(question, defaultVal) {
   return new Promise(resolve => {
@@ -156,28 +161,29 @@ function parseInstanceSelection(input, instances) {
   return { type: 'subset', selected };
 }
 
-function inspectMendixMtaSettings(mprPath) {
-  if (!mprPath || !fs.existsSync(mprPath)) return null;
-
-  let mxcliBin = null;
+function findMxcliBinary(mprPath) {
   const candidates = [
     path.join(toolsRootDir, 'bin', process.platform === 'win32' ? 'mxcli.exe' : 'mxcli'),
-    path.join(path.dirname(mprPath), 'bin', process.platform === 'win32' ? 'mxcli.exe' : 'mxcli')
+    ...(mprPath ? [path.join(path.dirname(mprPath), 'bin', process.platform === 'win32' ? 'mxcli.exe' : 'mxcli')] : [])
   ];
   for (const c of candidates) {
     if (fs.existsSync(c)) {
-      mxcliBin = c;
-      break;
+      return c;
     }
   }
-  if (!mxcliBin) {
-    try {
-      execSync('mxcli --version', { stdio: 'ignore' });
-      mxcliBin = 'mxcli';
-    } catch (e) {
-      return null;
-    }
+  try {
+    execSync('mxcli --version', { stdio: 'ignore' });
+    return 'mxcli';
+  } catch (e) {
+    return null;
   }
+}
+
+function inspectMendixMtaSettings(mprPath, optionalBin) {
+  if (!mprPath || !fs.existsSync(mprPath)) return null;
+
+  const mxcliBin = optionalBin || findMxcliBinary(mprPath);
+  if (!mxcliBin) return null;
 
   try {
     const output = execSync(`"${mxcliBin}" describe settings Settings -p "${mprPath}"`, {
@@ -540,7 +546,7 @@ function updateAgentDirectives(targetDir, appName, mtaUrl, skillsStyle, appInsta
 
 async function run() {
   console.log('======================================================');
-  console.log(' Menditect Agent Workspace Setup');
+  console.log(` Menditect Agent Workspace Setup${scriptVersion}`);
   console.log('======================================================\n');
 
   console.log('NOTICE AND DISCLAIMER:');
@@ -696,12 +702,28 @@ async function run() {
 
   let discoveredMta = null;
   if (mprPath && fs.existsSync(mprPath)) {
-    process.stdout.write('Checking Mendix project for configured MTA settings via mxcli... ');
-    discoveredMta = inspectMendixMtaSettings(mprPath);
-    if (discoveredMta && discoveredMta.instances && discoveredMta.instances.length > 0) {
-      console.log('done.');
+    let mxcliBin = findMxcliBinary(mprPath);
+    if (!mxcliBin) {
+      console.log('mxcli binary not found. Downloading latest mxcli to inspect project settings...');
+      try {
+        const { syncMxcli } = require('./sync-upstream');
+        const downloaded = await syncMxcli();
+        if (downloaded) {
+          mxcliBin = findMxcliBinary(mprPath);
+        }
+      } catch (e) {}
+    }
+
+    if (mxcliBin) {
+      process.stdout.write('Checking Mendix project for configured MTA settings via mxcli... ');
+      discoveredMta = inspectMendixMtaSettings(mprPath, mxcliBin);
+      if (discoveredMta && discoveredMta.instances && discoveredMta.instances.length > 0) {
+        console.log('done.');
+      } else {
+        console.log('none found.');
+      }
     } else {
-      console.log('none found.');
+      console.log('[NOTICE] mxcli could not be downloaded or found. Skipping auto-discovery and falling back to manual entry.');
     }
   }
 
@@ -951,6 +973,7 @@ if (require.main === module) {
   module.exports = {
     parseInstanceSelection,
     inspectMendixMtaSettings,
+    findMxcliBinary,
     getMenditectSetupBlock,
     formatBearerToken,
     findMpr,
