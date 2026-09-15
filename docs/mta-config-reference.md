@@ -15,7 +15,7 @@ This reference document defines the complete structure, properties, resolution r
 
 ---
 
-## 2. Canonical JSON Structure (v1.5.0)
+## 2. Canonical JSON Structure (v1.6.0)
 
 ```json
 {
@@ -31,6 +31,8 @@ This reference document defines the complete structure, properties, resolution r
   "mta_base_url": "https://mta-trial.mendixcloud.com",
   "mcp_endpoint": "https://mta-trial.mendixcloud.com/primitivetools/mcp",
   "plugin_mcp_url": "http://localhost:8081/plugin/mcp",
+  "playwright_viewer_url": "https://trace.playwright.dev/?trace=",
+  "tracefile_base_url": "http://localhost:8081/rest/private/tracefile?fileUUID=",
   "app_instances": [
     {
       "name": "mta-trial-1",
@@ -71,7 +73,9 @@ This reference document defines the complete structure, properties, resolution r
 | `mta_auth_header` | string | No | *(Deprecated)* Full HTTP Authorization header (`Bearer <session_token>`) for authenticating with the MTA server. Stored in `.env` as `MTA_MCP_AUTH_HEADER`. |
 | `plugin_mcp_url` | string (URI) | No | URL of the local MTA runtime plugin MCP endpoint (`[ApplicationRootUrl]/plugin/mcp`). Used for Option A exploratory test execution (`PAT-73`). |
 | `plugin_mcp_token` | string | No | *(Deprecated)* Authorization header (e.g. `Bearer 1`) for runtime plugin MCP endpoint. Stored in `.env` as `PLUGIN_MCP_TOKEN`. |
-| `app_instances` | array | No | Discovered application runtime instances containing `name`, `token`, `mtaUrl`, `runtimeUrl`, `pluginUrl`, `pluginToken`, and `pluginPort`. |
+| `playwright_viewer_url` | string (URI) | No | Base URL of the Playwright trace viewer web interface (defaults to `"https://trace.playwright.dev/?trace="`). |
+| `tracefile_base_url` | string | No | Base URL used to retrieve Playwright trace files by `FileUUID` from MTA or the runtime (e.g. `"http://localhost:8081/rest/private/tracefile?fileUUID="` or dynamically derived from `mta_base_url`). |
+| `app_instances` | array | No | Discovered application runtime instances containing `name`, `token`, `mtaUrl`, `runtimeUrl`, `pluginUrl`, `pluginToken`, `pluginPort`, and optional `tracefileUrl`. |
 | `default_app_instance` | string | No | Name of the primary default instance (e.g. `"mta-trial-1"`). |
 | `default_app_instance_token` | string | No | **MTA Application Instance Token (GUID)** used for executing tests via `ExecuteTest`. Eliminates manual token prompts! |
 | `model_source` | string | No | AST discovery mechanism: `"mxcli"` (offline headless `.mpr` inspection) or `"studiopro"` (Studio Pro 11.10+ live MCP server). |
@@ -111,6 +115,20 @@ AI agents must evaluate configuration sources in this strict order:
 3. `.env` (`MTA_APPLICATION_INSTANCE_TOKEN`).
 4. Prompt user only if no token is found in any configuration source.
 
+### E. Playwright Trace Viewer & Tracefile URL Resolution
+For frontend test failures or execution run inspection, agents assemble clickable Playwright Trace Viewer links whenever `GetTestRunResults` provides a `FileUUID`:
+1. `playwright_viewer_url`:
+   - (1) `mta_config.json` (`playwright_viewer_url`),
+   - (2) `.env` (`PLAYWRIGHT_VIEWER_URL`),
+   - (3) default fallback `https://trace.playwright.dev/?trace=`.
+2. `tracefile_base_url`:
+   - (1) `mta_config.json` (`tracefile_base_url`),
+   - (2) `.env` (`MTA_TRACEFILE_BASE_URL`),
+   - (3) dynamically derived fallback: `${mta_base_url.replace(/\/$/, '')}/rest/private/tracefile?fileUUID=`.
+3. Assembled Clickable Link:
+   - Full URL: `${playwright_viewer_url}${tracefile_base_url}${FileUUID}`
+   - Example: `https://trace.playwright.dev/?trace=http://localhost:8081/rest/private/tracefile?fileUUID=4835a9c0-6d43-4e89-8b89-f53eb9d59218`
+
 ---
 
 ## 5. Defensive Key Aliasing (Backward Compatibility Protocol)
@@ -126,6 +144,8 @@ mta_base_url                 <-- mta_url, mtaUrl
 default_app_instance_token   <-- app_instances[0].token, instance_token
 execution_plans_dir          <-- ${mta_output_path}/execution-plans
 execution_plans_archive_dir  <-- ${execution_plans_dir}/archive
+playwright_viewer_url        <-- playwrightViewerUrl
+tracefile_base_url           <-- tracefileBaseUrl, tracefile_url
 ```
 
 ---

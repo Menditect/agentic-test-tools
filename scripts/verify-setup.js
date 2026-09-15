@@ -427,6 +427,18 @@ function checkAppInstances() {
   }
 }
 
+function checkPlaywrightTraceSettings() {
+  const viewerUrl = config.playwright_viewer_url || process.env.PLAYWRIGHT_VIEWER_URL || 'https://trace.playwright.dev/?trace=';
+  const tracefileBase = config.tracefile_base_url || process.env.MTA_TRACEFILE_BASE_URL || (config.mta_base_url ? `${config.mta_base_url.replace(/\/$/, '')}/rest/private/tracefile?fileUUID=` : '');
+  console.log('Checking Playwright trace inspection readiness...');
+  console.log(`  [INFO] Playwright Viewer URL: ${viewerUrl}`);
+  if (tracefileBase) {
+    console.log(`  [PASS] Tracefile Base URL:   ${tracefileBase}`);
+  } else {
+    console.log('  [NOTICE] Tracefile Base URL not configured; will fall back dynamically to mta_base_url.');
+  }
+}
+
 function verifyMode(mode) {
   return new Promise((resolve) => {
     console.log(`Verifying ${mode} MCP server...`);
@@ -519,6 +531,9 @@ async function run() {
   console.log();
 
   checkAppInstances();
+  console.log();
+
+  checkPlaywrightTraceSettings();
   console.log();
 
   const mtaOk = await verifyMode('mta');

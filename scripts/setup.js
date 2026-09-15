@@ -43,6 +43,8 @@ function normalizeConfigAliases(cfg) {
   normalized.mta_base_url = cfg.mta_base_url || cfg.mta_url || cfg.mtaUrl || '';
   normalized.default_app_instance_token = cfg.default_app_instance_token || (cfg.app_instances && cfg.app_instances[0]?.token) || cfg.instance_token || '';
   normalized.execution_plans_dir = cfg.execution_plans_dir || (cfg.mta_output_path ? path.join(cfg.mta_output_path, 'execution-plans') : '');
+  normalized.playwright_viewer_url = cfg.playwright_viewer_url || cfg.playwrightViewerUrl || '';
+  normalized.tracefile_base_url = cfg.tracefile_base_url || cfg.tracefileBaseUrl || cfg.tracefile_url || '';
   return normalized;
 }
 
@@ -1078,6 +1080,9 @@ async function run(options = {}) {
   const rawPluginToken = await ask('App under test Plugin Token (Bearer token recommended)', defaultPluginToken);
   const pluginToken = formatBearerToken(rawPluginToken);
   
+  const defaultPlaywrightViewerUrl = existingConfig.playwright_viewer_url || 'https://trace.playwright.dev/?trace=';
+  const defaultTracefileBaseUrl = existingConfig.tracefile_base_url || (mtaUrl ? `${mtaUrl.replace(/\/$/, '')}/rest/private/tracefile?fileUUID=` : '');
+
   let modelSource = '';
   while (modelSource !== '1' && modelSource !== '2') {
     modelSource = await ask('Model Source: [1] mxcli, [2] Studio Pro MCP', existingConfig.model_source === 'studiopro' ? '2' : '1');
@@ -1103,6 +1108,7 @@ async function run(options = {}) {
     if (inst.pluginUrl && typeof inst.pluginUrl === 'string') item.pluginUrl = inst.pluginUrl;
     if (inst.pluginToken && typeof inst.pluginToken === 'string') item.pluginToken = inst.pluginToken;
     if (inst.pluginPort) item.pluginPort = String(inst.pluginPort);
+    if (inst.tracefileUrl && typeof inst.tracefileUrl === 'string') item.tracefileUrl = inst.tracefileUrl;
     return item;
   });
 
@@ -1119,6 +1125,8 @@ async function run(options = {}) {
     mta_base_url: mtaUrl,
     mcp_endpoint: mcpEndpoint,
     plugin_mcp_url: pluginUrl,
+    playwright_viewer_url: defaultPlaywrightViewerUrl,
+    tracefile_base_url: defaultTracefileBaseUrl,
     app_instances: sanitizedInstances,
     default_app_instance: defaultInstanceName,
     default_app_instance_token: defaultInstanceToken,
