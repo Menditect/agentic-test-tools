@@ -760,7 +760,8 @@ function updateAgentDirectives(targetDir, appName, mtaUrl, skillsStyle, appInsta
   console.log(`Configured Menditect Architecture Setup in ${targetDir}`);
 }
 
-async function run() {
+async function run(options = {}) {
+  const skipSkills = options.skipSkills || process.argv.includes('--skip-skills') || process.argv.includes('--no-skills') || process.argv.includes('--skip-skills-sync');
   console.log('======================================================');
   console.log(` Menditect Agent Workspace Setup${scriptVersion}`);
   console.log('======================================================\n');
@@ -1170,7 +1171,27 @@ MTA_APP_INSTANCE_DEFAULT="${defaultInstanceName}"
   }
   console.log(`Created .env in ${workspaceDir}`);
 
-  // 8. Initialize Mendix AI Scaffolding (mxcli init, .ai-context/skills, docs/brain, .mxcli)
+  // 8. Synchronize Menditect Agentic Test Skills from upstream (agentic-test-skills)
+  let skillsSyncSuccess = false;
+  if (skipSkills) {
+    console.log('\n[NOTICE] Skipping skills synchronization (--skip-skills specified).');
+  } else {
+    console.log('\n--- Menditect Agentic Test Skills Synchronization ---');
+    try {
+      const { syncSkills } = require('./sync-upstream');
+      skillsSyncSuccess = await syncSkills({ config });
+      if (skillsSyncSuccess) {
+        console.log(`[PASS] Upstream skills synchronized successfully into ${skillsDir}.`);
+      } else {
+        console.warn(`[WARN] Skills synchronization did not complete. You can run "npm run update:skills" later.`);
+      }
+    } catch (err) {
+      console.warn(`[WARN] Could not automatically sync skills: ${err.message}`);
+      console.warn(`       You can sync skills manually later via "npm run update:skills".`);
+    }
+  }
+
+  // 9. Initialize Mendix AI Scaffolding (mxcli init, .ai-context/skills, docs/brain, .mxcli)
   if (workspaceChoice === '1') {
     initializeMxcli(toolsRootDir, mprPath, null, { isMendixProject: false });
     if (projectDir && fs.existsSync(projectDir) && path.resolve(projectDir) !== path.resolve(toolsRootDir)) {
@@ -1185,29 +1206,33 @@ MTA_APP_INSTANCE_DEFAULT="${defaultInstanceName}"
     initializeMxcli(workspaceDir, mprPath, null, { isMendixProject: false });
   }
 
-  // 9. Generate & Merge IDE Configs
+  // 10. Generate & Merge IDE Configs
   generateIdeConfigs(workspaceDir, mcpSource, projectDir, mprPath, mtaUrl, appName, mtaAuthHeader, pluginToken, defaultInstanceToken);
 
-  // 10. Deploy local mxcli runners into workspace
+  // 11. Deploy local mxcli runners into workspace
   const mprFileName = mprPath ? path.basename(mprPath) : '';
   deployMxcliWrappers(workspaceDir, mprFileName);
 
-  // 11. Build Mendix Project Catalog (catalog.db) for MTA test automation & code search
+  // 12. Build Mendix Project Catalog (catalog.db) for MTA test automation & code search
   if (mprPath && fs.existsSync(mprPath)) {
     await buildProjectCatalog(mprPath, null, { askFn: ask });
   }
 
-  // 12. Update Agent Directives in workspaceDir
+  // 13. Update Agent Directives in workspaceDir
   updateAgentDirectives(workspaceDir, appName, mtaUrl, skillsStyle, appInstances, defaultInstanceName);
 
   console.log('\n======================================================');
   console.log(' Setup completed successfully!');
   console.log(` Workspace configured at: ${workspaceDir}`);
   console.log(` Skills destination:      ${skillsDir}`);
+  if (!skipSkills) {
+    console.log(` Skills status:           ${skillsSyncSuccess ? 'Synchronized from agentic-test-skills' : 'Pending (run npm run update:skills)'}`);
+  }
   console.log(` Active App Instance:     ${defaultInstanceName}`);
   console.log(` App Instances Total:     ${appInstances.length}`);
   console.log(` Execution plans:         ${plansDir}`);
-  console.log(' Next step: run "npm run update" to sync skills and binaries.');
+  console.log(' Your workspace is ready! Run "npm run verify" to check MCP connectivity.');
+  console.log(' (Run "npm run update" in the future to refresh skills and binaries).');
   console.log('======================================================');
   if (rl) rl.close();
 }
@@ -1252,7 +1277,8 @@ if (require.main === module) {
   if (args.includes('--directives-only') || args.includes('--directives')) {
     runDirectivesOnly();
   } else {
-    run();
+    const skipSkills = args.includes('--skip-skills') || args.includes('--no-skills') || args.includes('--skip-skills-sync');
+    run({ skipSkills });
   }
 } else {
   module.exports = {
@@ -1269,6 +1295,7 @@ if (require.main === module) {
     isVersion1112OrHigher,
     normalizeConfigAliases,
     ensureExecutionPlanFolders,
-    runDirectivesOnly
+    runDirectivesOnly,
+    run
   };
 }

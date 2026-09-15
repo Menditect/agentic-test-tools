@@ -4,6 +4,7 @@ This page lists all the releases of the Menditect Agent Workspace Template, with
 
 | Release Version | Date | Key Highlights / Release Message |
 | :--- | :--- | :--- |
+| [v1.5.3](releases/v1.5.3.md) | 2026-09-15 | automatic syncing of skills at setup |
 | [v1.5.2](releases/v1.5.2.md) | 2026-09-14 | changed mta_config required fields |
 | [v1.5.1](releases/v1.5.1.md) | 2026-09-14 | improved initialization of mxcli |
 | [v1.5.0](releases/v1.5.0.md) | 2026-09-14 | improved handling of secrets and mxcli init |

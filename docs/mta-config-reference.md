@@ -156,7 +156,8 @@ This interactive wizard:
 1. Prompts for or auto-detects the Mendix `.mpr` project file (`findMpr`).
 2. Detects the Mendix version from the `.mpr` file header (`detectMendixVersion`).
 3. Auto-discovers Application Instances, tokens, MTA connection URLs, and runtime ports from Studio Pro configurations.
-4. Generates and updates:
+4. Synchronizes official Menditect Agentic Test Skills from `Menditect/agentic-test-skills` and aligns `mta_config.schema.json`.
+5. Generates and updates:
    - `mta_config.json` (canonical configuration contract).
    - `.env` (environment variables for terminal runners).
    - `.vscode/settings.json`, `.vscode/launch.json`, and `.gemini/settings.json` (IDE MCP configurations).

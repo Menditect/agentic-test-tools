@@ -3,5 +3,5 @@ if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
     exit 1
 }
 
-node "$PSScriptRoot\scripts\setup.js"
+node "$PSScriptRoot\scripts\setup.js" @args
 exit $LASTEXITCODE

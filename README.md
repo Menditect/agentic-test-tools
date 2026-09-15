@@ -126,11 +126,12 @@ The wizard will guide you through:
 
 The setup wizard automatically:
 1. Creates your local `.env` (mode `0o600`) and `mta_config.json` (strictly adhering to [mta_config.schema.json](mta_config.schema.json) and the [MTA Configuration Specification](docs/mta-config-reference.md)) with your configured endpoints, tokens, app instances, and workspace targets.
-2. Initializes or refreshes Mendix AI scaffolding via `mxcli init` (`.ai-context/skills/`, `docs/brain/`, and `.mxcli/`), preserving any pre-existing custom `AGENTS.md` instructions.
-3. Generates and merges IDE configurations in `.vscode/mcp.json`, `.vscode/settings.json`, `.cursor/mcp.json`, and `.claude/settings.json` in your selected workspace without overwriting existing settings or permissions.
-4. Appends the **Menditect Architecture Setup** block (including the application instances mapping) to the project-level `AGENTS.md` (and other agent files), preserving existing rules.
-5. Deploys local `./mxcli` wrappers into your workspace so model inspection commands work out of the box.
-6. Compiles the Mendix project catalog (`.mxcli/catalog.db`) with full model metadata, activities, widgets, references, and MDL source definitions (`REFRESH CATALOG SOURCE FORCE`), providing advance duration warnings and interactive options for large projects.
+2. Synchronizes official Menditect Agentic Test Skills from the public upstream repository (`Menditect/agentic-test-skills`) into your designated skills folder (`skills/` or module path), and aligns the canonical `mta_config.schema.json` contract.
+3. Initializes or refreshes Mendix AI scaffolding via `mxcli init` (`.ai-context/skills/`, `docs/brain/`, and `.mxcli/`), preserving any pre-existing custom `AGENTS.md` instructions.
+4. Generates and merges IDE configurations in `.vscode/mcp.json`, `.vscode/settings.json`, `.cursor/mcp.json`, and `.claude/settings.json` in your selected workspace without overwriting existing settings or permissions.
+5. Appends the **Menditect Architecture Setup** block (including the application instances mapping) to the project-level `AGENTS.md` (and other agent files), preserving existing rules.
+6. Deploys local `./mxcli` wrappers into your workspace so model inspection commands work out of the box.
+7. Compiles the Mendix project catalog (`.mxcli/catalog.db`) with full model metadata, activities, widgets, references, and MDL source definitions (`REFRESH CATALOG SOURCE FORCE`), providing advance duration warnings and interactive options for large projects.
 
 ---
 
@@ -294,8 +295,8 @@ Module-level skills (`skillssource/_modules/menditect_agentictestskills`) requir
 - **Cons**:
   - Requires manual path verification.
 
-### Step 3: Fetch Skills and Binaries
-Download the official Menditect MTA skills and the platform-specific `mxcli` binary:
+### Step 3: Refresh Skills and Binaries (Periodic Updates)
+The setup wizard automatically synchronizes MTA skills on initial setup. To periodically refresh official Menditect MTA skills or update the platform-specific `mxcli` binary in an existing workspace, run:
 
 ```bash
 npm run update
@@ -311,6 +312,7 @@ npm run verify
 
 The verifier audits:
 - `mta_config.json` compliance against the schema contract.
+- Presence and integrity of Menditect Agentic Test Skills (`skills/`).
 - Availability of the `mxcli` binary, initialization of Mendix AI skills (`.ai-context/skills/`), and presence of the `.mxcli/` operational staging folder.
 - Security hygiene (verifies no sensitive Bearer tokens are stored in `.vscode/settings.json` or unignored in Git).
 - Agent directives integrity (verifies `# Menditect Architecture Setup` blocks are intact).

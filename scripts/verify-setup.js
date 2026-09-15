@@ -138,6 +138,31 @@ function checkSchemaContractAlignment() {
   return true;
 }
 
+function checkSkillsPresence() {
+  const skillsDir = config.skills_dir || path.join(rootDir, 'skills');
+  console.log('Checking MTA skills presence...');
+
+  if (!fs.existsSync(skillsDir)) {
+    console.warn(`  [WARN] Skills directory not found at ${skillsDir}. Run "npm run update:skills" to download MTA skills.`);
+    return false;
+  }
+
+  const expectedSkills = ['mta-test-design', 'mta-build', 'mta-run-analyze', 'mta-install-config'];
+  const hasAgents = fs.existsSync(path.join(skillsDir, 'AGENTS.md'));
+  const foundSkills = expectedSkills.filter(skill => fs.existsSync(path.join(skillsDir, skill)));
+
+  if (hasAgents && foundSkills.length === expectedSkills.length) {
+    console.log(`  [PASS] MTA skills are active in ${skillsDir} (orchestrator + ${foundSkills.length} domain skills present).`);
+    return true;
+  } else if (foundSkills.length > 0) {
+    console.warn(`  [WARN] Partial MTA skills detected in ${skillsDir} (${foundSkills.length}/${expectedSkills.length}). Run "npm run update:skills" to align.`);
+    return false;
+  } else {
+    console.warn(`  [WARN] No MTA skills detected in ${skillsDir}. Run "npm run update:skills" to download them.`);
+    return false;
+  }
+}
+
 function checkMxcliBinary() {
   const toolsRootDir = path.join(__dirname, '..');
   const binName = process.platform === 'win32' ? 'mxcli.exe' : 'mxcli';
@@ -475,6 +500,9 @@ async function run() {
     schemaResult.errors.forEach(err => console.warn(`  - ${err}`));
   }
   checkSchemaContractAlignment();
+  console.log();
+
+  checkSkillsPresence();
   console.log();
 
   console.log('Checking model tooling readiness...');

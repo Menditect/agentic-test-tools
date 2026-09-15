@@ -134,10 +134,10 @@ function updateDirectives(targetDir, appName, mtaUrl, skillsStyle) {
   }
 }
 
-async function syncSkills() {
-  const config = loadConfig();
-  let targetSkillsDir = config.skills_dir || path.join(rootDir, 'skills');
-  const workspaceDir = config.workspace_dir || rootDir;
+async function syncSkills(options = {}) {
+  const config = options.config || loadConfig();
+  let targetSkillsDir = (options.config && options.config.skills_dir) || config.skills_dir || path.join(rootDir, 'skills');
+  const workspaceDir = (options.config && options.config.workspace_dir) || config.workspace_dir || rootDir;
 
   // Ensure execution-plans folder exists in workspace (menditect-output/execution-plans)
   const menditectOutputDir = config.mta_output_path || path.join(workspaceDir, 'menditect-output');
@@ -215,11 +215,14 @@ async function syncSkills() {
           console.warn(`[WARN] Could not update mta_config.schema.json from upstream: ${schemaErr.message}`);
         }
       }
+      return true;
     } else {
-      console.log('AgenticTestSkills directory not found in repository.');
+      console.warn('[WARN] AgenticTestSkills directory not found in repository.');
+      return false;
     }
   } catch (err) {
     console.error('Failed to sync skills (is git installed?):', err.message);
+    return false;
   } finally {
     try {
       if (fs.existsSync(tmpDir)) {
