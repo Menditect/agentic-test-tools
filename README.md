@@ -226,6 +226,28 @@ When resolving configuration settings, AI agents must evaluate sources in this s
 
 ---
 
+## Upstream Synchronization & Version Inspection
+
+The workspace includes a version inspection mechanism that queries GitHub releases (`mendixlabs/mxcli`) and repository skill frontmatters (`Menditect/agentic-test-skills`) to compare local versions against remote versions before prompting the user to confirm:
+
+```bash
+# Check versions without downloading (Dry Run)
+npm run update:check
+# or via PowerShell
+.\update.ps1 -Check
+
+# Interactive Update (compares versions, presents table, asks for confirmation)
+npm run update               # Update all components (skills + mxcli)
+npm run update:skills        # Update MTA testing skills only
+npm run update:mxcli         # Update mxcli binary only
+
+# Non-interactive / Automation Flags
+node scripts/sync-upstream.js --yes      # Auto-confirm and update if changes exist
+node scripts/sync-upstream.js --force    # Force re-download even if already up to date
+```
+
+---
+
 ### Workspace Modes: Choosing Where to Run Your Agent
 
 You can choose where your AI agent (VS Code, Cursor, Claude Code) opens and executes:

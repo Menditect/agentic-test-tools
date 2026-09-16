@@ -1,6 +1,7 @@
 const https = require('https');
 const fs = require('fs');
 const path = require('path');
+const readline = require('readline');
 const { execSync } = require('child_process');
 const os = require('os');
 
@@ -57,9 +58,407 @@ function apiRequest(url) {
       if (res.statusCode >= 400) return reject(new Error(`HTTP ${res.statusCode}`));
       let data = '';
       res.on('data', chunk => data += chunk);
-      res.on('end', () => resolve(JSON.parse(data)));
+      res.on('end', () => {
+        try {
+          resolve(JSON.parse(data));
+        } catch (e) {
+          resolve(data);
+        }
+      });
     }).on('error', reject);
   });
+}
+
+function fetchRawText(url) {
+  return new Promise((resolve, reject) => {
+    const options = { headers: { 'User-Agent': 'Menditect-Workspace-Setup' } };
+    https.get(url, options, (res) => {
+      if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+        return fetchRawText(res.headers.location).then(resolve).catch(reject);
+      }
+      if (res.statusCode >= 400) return reject(new Error(`HTTP ${res.statusCode}`));
+      let data = '';
+      res.on('data', chunk => data += chunk);
+      res.on('end', () => resolve(data));
+    }).on('error', reject);
+  });
+}
+
+function extractFrontmatterVersion(content) {
+  if (!content) return null;
+  const lines = content.split(/\r?\n/);
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (trimmed.startsWith('version:')) {
+      const v = trimmed.replace(/^version:\s*['"]?/, '').replace(/['"]?\s*$/, '');
+      if (v) return v;
+    }
+  }
+  return null;
+}
+
+function extractFrontmatterName(content) {
+  if (!content) return null;
+  const lines = content.split(/\r?\n/);
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (trimmed.startsWith('name:')) {
+      const n = trimmed.replace(/^name:\s*['"]?/, '').replace(/['"]?\s*$/, '');
+      if (n) return n;
+    }
+  }
+  return null;
+}
+
+function promptConfirmation(question, defaultYes = true) {
+  return new Promise((resolve) => {
+    if (!process.stdin.isTTY) {
+      return resolve(defaultYes);
+    }
+    const suffix = defaultYes ? ' [Y/n]: ' : ' [y/N]: ';
+    const rl = readline.createInterface({
+      input: process.stdin,
+      output: process.stdout
+    });
+    rl.question(question + suffix, (ans) => {
+      rl.close();
+      const trimmed = ans.trim().toLowerCase();
+      if (!trimmed) {
+        return resolve(defaultYes);
+      }
+      if (trimmed === 'y' || trimmed === 'yes') {
+        return resolve(true);
+      }
+      return resolve(false);
+    });
+  });
+}
+
+function getLocalMxcliVersion(binDir = defaultBinDir) {
+  const binaryName = process.platform === 'win32' ? 'mxcli.exe' : 'mxcli';
+  const binPath = path.join(binDir, binaryName);
+  if (!fs.existsSync(binPath)) {
+    return { installed: false, version: null, raw: null };
+  }
+  try {
+    const out = execSync(`"${binPath}" --version`, {
+      encoding: 'utf8',
+      stdio: ['pipe', 'pipe', 'ignore'],
+      timeout: 5000
+    }).trim();
+    const match = out.match(/mxcli version (v?[0-9a-zA-Z\.\-]+)/i);
+    const version = match ? match[1] : out;
+    return { installed: true, version, raw: out };
+  } catch (e) {
+    return { installed: true, version: 'Unknown', raw: null };
+  }
+}
+
+async function getRemoteMxcliRelease() {
+  try {
+    const release = await apiRequest('https://api.github.com/repos/mendixlabs/mxcli/releases/latest');
+    const version = release.tag_name || release.name || 'Unknown';
+    const publishedAt = release.published_at ? release.published_at.substring(0, 10) : '';
+    return {
+      available: true,
+      version,
+      publishedAt,
+      release
+    };
+  } catch (e) {
+    return { available: false, version: null, error: e.message };
+  }
+}
+
+function getLocalSkillVersions(skillsDir) {
+  const results = new Map();
+  if (!fs.existsSync(skillsDir)) {
+    return results;
+  }
+
+  const agentsPath = path.join(skillsDir, 'AGENTS.md');
+  if (fs.existsSync(agentsPath)) {
+    try {
+      const content = fs.readFileSync(agentsPath, 'utf8');
+      const v = extractFrontmatterVersion(content);
+      results.set('AGENTS.md', {
+        name: 'Root Orchestrator (AGENTS.md)',
+        type: 'agents',
+        relPath: 'AGENTS.md',
+        version: v || 'Unknown',
+        installed: true
+      });
+    } catch (e) {}
+  }
+
+  try {
+    const entries = fs.readdirSync(skillsDir, { withFileTypes: true });
+    for (const entry of entries) {
+      if (entry.isDirectory()) {
+        const skillPath = path.join(skillsDir, entry.name, 'SKILL.md');
+        if (fs.existsSync(skillPath)) {
+          try {
+            const content = fs.readFileSync(skillPath, 'utf8');
+            const v = extractFrontmatterVersion(content);
+            const n = extractFrontmatterName(content) || entry.name;
+            results.set(entry.name, {
+              name: n,
+              type: 'skill',
+              relPath: `${entry.name}/SKILL.md`,
+              version: v || 'Unknown',
+              installed: true
+            });
+          } catch (e) {}
+        }
+      }
+    }
+  } catch (e) {}
+
+  return results;
+}
+
+async function getRemoteSkillVersions() {
+  const results = new Map();
+  let commitInfo = null;
+
+  try {
+    const commitData = await apiRequest('https://api.github.com/repos/Menditect/agentic-test-skills/commits/main');
+    if (commitData && commitData.sha) {
+      commitInfo = {
+        sha: commitData.sha.substring(0, 7),
+        date: commitData.commit && commitData.commit.committer ? commitData.commit.committer.date.substring(0, 10) : '',
+        message: commitData.commit ? commitData.commit.message.split('\n')[0] : ''
+      };
+    }
+  } catch (e) {}
+
+  const knownSkillPaths = [
+    { key: 'AGENTS.md', relPath: 'AGENTS.md', name: 'Root Orchestrator (AGENTS.md)', type: 'agents' },
+    { key: 'mta-test-design', relPath: 'mta-test-design/SKILL.md', name: 'mta-test-design', type: 'skill' },
+    { key: 'mta-build', relPath: 'mta-build/SKILL.md', name: 'mta-build', type: 'skill' },
+    { key: 'mta-run-analyze', relPath: 'mta-run-analyze/SKILL.md', name: 'mta-run-analyze', type: 'skill' },
+    { key: 'mta-install-config', relPath: 'mta-install-config/SKILL.md', name: 'mta-install-config', type: 'skill' },
+    { key: 'menditecttestabilityframework', relPath: 'menditecttestabilityframework/SKILL.md', name: 'menditecttestabilityframework', type: 'skill' }
+  ];
+
+  try {
+    const treeData = await apiRequest('https://api.github.com/repos/Menditect/agentic-test-skills/git/trees/main?recursive=1');
+    if (treeData && Array.isArray(treeData.tree)) {
+      for (const item of treeData.tree) {
+        if (item.path && item.path.startsWith('AgenticTestSkills/')) {
+          const sub = item.path.replace(/^AgenticTestSkills\//, '');
+          if (sub.endsWith('/SKILL.md')) {
+            const skillDirName = sub.replace(/\/SKILL\.md$/, '');
+            if (!knownSkillPaths.some(k => k.key === skillDirName)) {
+              knownSkillPaths.push({
+                key: skillDirName,
+                relPath: sub,
+                name: skillDirName,
+                type: 'skill'
+              });
+            }
+          }
+        }
+      }
+    }
+  } catch (e) {}
+
+  await Promise.all(knownSkillPaths.map(async (item) => {
+    try {
+      const rawUrl = `https://raw.githubusercontent.com/Menditect/agentic-test-skills/main/AgenticTestSkills/${item.relPath}`;
+      const content = await fetchRawText(rawUrl);
+      const v = extractFrontmatterVersion(content);
+      const n = extractFrontmatterName(content) || item.name;
+      results.set(item.key, {
+        name: n,
+        type: item.type,
+        relPath: item.relPath,
+        version: v || 'Unknown',
+        available: true
+      });
+    } catch (err) {
+      results.set(item.key, {
+        name: item.name,
+        type: item.type,
+        relPath: item.relPath,
+        version: null,
+        available: false
+      });
+    }
+  }));
+
+  return { results, commitInfo };
+}
+
+async function checkVersions(options = {}) {
+  const config = options.config || loadConfig();
+  const targetSkillsDir = (options.config && options.config.skills_dir) || config.skills_dir || path.join(rootDir, 'skills');
+  const targetBinDir = defaultBinDir;
+
+  const target = options.target || 'all';
+  const report = {
+    mxcli: null,
+    skills: null,
+    hasUpdates: false,
+    summary: []
+  };
+
+  if (target === 'all' || target === 'mxcli') {
+    const local = getLocalMxcliVersion(targetBinDir);
+    const remote = await getRemoteMxcliRelease();
+    
+    let status = 'Unknown';
+    let updateAvailable = false;
+    if (!local.installed) {
+      status = 'Not installed (Download available)';
+      updateAvailable = remote.available;
+    } else if (!remote.available) {
+      status = 'Remote check failed';
+    } else if (local.version && remote.version) {
+      const cleanLocal = local.version.replace(/^v/, '');
+      const cleanRemote = remote.version.replace(/^v/, '');
+      if (cleanLocal === cleanRemote) {
+        status = 'Up to date';
+      } else {
+        status = 'Update available';
+        updateAvailable = true;
+      }
+    }
+
+    report.mxcli = {
+      local: local.version || '(not installed)',
+      remote: remote.version ? `${remote.version}${remote.publishedAt ? ` (${remote.publishedAt})` : ''}` : '(failed to fetch)',
+      status,
+      updateAvailable,
+      rawRemote: remote.version
+    };
+
+    if (updateAvailable) report.hasUpdates = true;
+  }
+
+  if (target === 'all' || target === 'skills') {
+    const localMap = getLocalSkillVersions(targetSkillsDir);
+    const { results: remoteMap, commitInfo } = await getRemoteSkillVersions();
+
+    const allKeys = Array.from(new Set([...localMap.keys(), ...remoteMap.keys()]));
+    const skillRows = [];
+    let skillsUpdateAvailable = false;
+
+    for (const key of allKeys) {
+      const loc = localMap.get(key);
+      const rem = remoteMap.get(key);
+
+      const displayName = (loc && loc.name) || (rem && rem.name) || key;
+      const localVer = loc ? loc.version : '(not installed)';
+      const remoteVer = rem && rem.version ? rem.version : '(not found)';
+
+      let status = 'Unknown';
+      let needsUpdate = false;
+
+      if (!loc) {
+        status = 'New skill available';
+        needsUpdate = true;
+      } else if (!rem || !rem.version) {
+        status = 'Upstream unavailable';
+      } else if (loc.version === rem.version) {
+        status = 'Up to date';
+      } else {
+        status = 'Update available';
+        needsUpdate = true;
+      }
+
+      if (needsUpdate) {
+        skillsUpdateAvailable = true;
+      }
+
+      skillRows.push({
+        key,
+        name: displayName,
+        localVersion: localVer,
+        remoteVersion: remoteVer,
+        status,
+        needsUpdate,
+        type: (loc && loc.type) || (rem && rem.type) || 'skill'
+      });
+    }
+
+    skillRows.sort((a, b) => {
+      if (a.key === 'AGENTS.md') return -1;
+      if (b.key === 'AGENTS.md') return 1;
+      return a.name.localeCompare(b.name);
+    });
+
+    report.skills = {
+      targetDir: targetSkillsDir,
+      commitInfo,
+      items: skillRows,
+      updateAvailable: skillsUpdateAvailable
+    };
+
+    if (skillsUpdateAvailable) report.hasUpdates = true;
+  }
+
+  return report;
+}
+
+function printVersionTable(report) {
+  console.log('================================================================================');
+  console.log(`                Menditect Workspace Upstream Version Check${scriptVersion}`);
+  console.log('================================================================================\n');
+
+  const pad = (str, len) => String(str || '').padEnd(len);
+
+  if (report.mxcli) {
+    console.log('--- Mendix Model CLI (mendixlabs/mxcli) ---');
+    console.log(`${pad('Component', 35)} | ${pad('Local Version', 16)} | ${pad('Remote Version', 20)} | Status`);
+    console.log('-'.repeat(88));
+    console.log(
+      `${pad('mxcli binary', 35)} | ` +
+      `${pad(report.mxcli.local, 16)} | ` +
+      `${pad(report.mxcli.remote, 20)} | ` +
+      `${report.mxcli.status}`
+    );
+    console.log();
+  }
+
+  if (report.skills) {
+    const commitStr = report.skills.commitInfo
+      ? ` (@ ${report.skills.commitInfo.sha}${report.skills.commitInfo.date ? `, ${report.skills.commitInfo.date}` : ''})`
+      : '';
+    console.log(`--- MTA Testing Skills (Menditect/agentic-test-skills${commitStr}) ---`);
+    console.log(`Destination: ${report.skills.targetDir}`);
+    console.log(`${pad('Skill / Orchestrator', 35)} | ${pad('Local Version', 16)} | ${pad('Remote Version', 20)} | Status`);
+    console.log('-'.repeat(88));
+
+    for (const item of report.skills.items) {
+      console.log(
+        `${pad(item.name, 35)} | ` +
+        `${pad(item.localVersion, 16)} | ` +
+        `${pad(item.remoteVersion, 20)} | ` +
+        `${item.status}`
+      );
+    }
+    console.log();
+  }
+
+  console.log('--------------------------------------------------------------------------------');
+  const countUpdates = [];
+  if (report.mxcli && report.mxcli.updateAvailable) countUpdates.push('mxcli binary');
+  if (report.skills) {
+    const updatedCount = report.skills.items.filter(i => i.needsUpdate).length;
+    if (updatedCount > 0) countUpdates.push(`${updatedCount} skill(s) / orchestrator`);
+  }
+
+  if (countUpdates.length > 0) {
+    console.log(`[NOTICE] Updates available for: ${countUpdates.join(', ')}.`);
+    if (report.skills && report.skills.items.some(i => i.needsUpdate)) {
+      console.log(`[WARNING] Updating skills performs complete replacement of official MTA skills`);
+      console.log(`          in the target directory to prevent orphan skills.`);
+    }
+  } else {
+    console.log(`[PASS] All inspected components are up to date with upstream.`);
+  }
+  console.log('--------------------------------------------------------------------------------\n');
 }
 
 function downloadFile(url, dest) {
@@ -317,21 +716,78 @@ async function syncMxcli() {
   }
 }
 
-async function run() {
-  console.log(`--- Menditect Workspace Update${scriptVersion} ---`);
-  console.log('NOTICE: This tooling is vibe-coded and provided "AS IS" without official support.\n');
-  const target = process.argv[2] || 'all';
+async function run(cliTarget = null) {
+  const args = process.argv.slice(2);
+  const isCheckOnly = args.includes('--check') || args.includes('-c');
+  const isAutoYes = args.includes('--yes') || args.includes('-y');
+  const isForce = args.includes('--force') || args.includes('-f');
+
+  const positionalArgs = args.filter(a => !a.startsWith('-'));
+  const target = cliTarget || positionalArgs[0] || 'all';
+
+  const report = await checkVersions({ target });
+  printVersionTable(report);
+
+  if (isCheckOnly) {
+    return;
+  }
+
+  let shouldProceed = false;
+
+  if (isAutoYes) {
+    if (report.hasUpdates || isForce) {
+      shouldProceed = true;
+    } else {
+      console.log('Nothing to update. (Use --force to re-download/re-sync anyway).\n');
+      return;
+    }
+  } else if (!process.stdin.isTTY) {
+    // Non-interactive fallback
+    if (report.hasUpdates || isForce) {
+      console.log('[INFO] Non-interactive environment detected. Proceeding with update...\n');
+      shouldProceed = true;
+    } else {
+      console.log('All components are up to date.\n');
+      return;
+    }
+  } else {
+    // Interactive TTY prompt
+    if (report.hasUpdates) {
+      shouldProceed = await promptConfirmation('Proceed with update?', true);
+    } else {
+      shouldProceed = await promptConfirmation('Everything is up to date. Force re-download/re-sync anyway?', false);
+    }
+
+    if (!shouldProceed) {
+      console.log('Update cancelled by user.\n');
+      return;
+    }
+  }
+
+  console.log('\nStarting update...\n');
   if (target === 'skills') {
     await syncSkills();
   } else if (target === 'mxcli') {
     await syncMxcli();
   } else {
     await syncSkills();
+    console.log();
     await syncMxcli();
   }
+  console.log('\n[PASS] Upstream update complete.');
 }
 
-module.exports = { syncSkills, syncMxcli };
+module.exports = {
+  syncSkills,
+  syncMxcli,
+  checkVersions,
+  printVersionTable,
+  getLocalMxcliVersion,
+  getRemoteMxcliRelease,
+  getLocalSkillVersions,
+  getRemoteSkillVersions,
+  run
+};
 
 if (require.main === module) {
   run();

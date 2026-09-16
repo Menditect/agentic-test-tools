@@ -1,3 +1,3 @@
-const { syncSkills } = require('./sync-upstream');
+const { run } = require('./sync-upstream');
 
-syncSkills();
+run('skills');

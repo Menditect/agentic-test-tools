@@ -1,3 +1,3 @@
-const { syncMxcli } = require('./sync-upstream');
+const { run } = require('./sync-upstream');
 
-syncMxcli();
+run('mxcli');

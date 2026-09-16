@@ -25,6 +25,12 @@ All Menditect MTA skills (like test design, analysis, installation) are located 
 - **Template Release Version**: Governed exclusively by the user when publishing. Applies ONLY to `package.json`, `RELEASES.md`, `releases/`, and git tags.
 - **mta_config Contract Version**: SSOT is `agentic-test-skills` (`references/mta_config.schema.json`). NEVER bump or modify `mta_config` version when releasing `agentic-test-tools`. It must strictly match `agentic-test-skills`.
 
+## Upstream Skills & Tools Update Protocol
+- When asked to update `skills` or `mxcli` (or check for updates):
+  1. Inspect local vs remote versions across all skills (`AGENTS.md` orchestrator and individual `SKILL.md` domain skills) and `mxcli` (e.g. via `node scripts/sync-upstream.js --check` or `npm run update:check`).
+  2. Present the detailed comparison table to the user showing which specific skills have updates and which are already up-to-date.
+  3. Prompt the user for explicit confirmation before applying any updates.
+
 # Menditect Architecture Setup
 - **CRITICAL OPERATIONAL COMMAND:** Always execute tasks using the core rules defined in: [skills/AGENTS.md].
 - **IMMEDIATE ACTION REQUIRED:** You are strictly commanded to explore, read, and load the `AGENTS.md` and context of the `skills/` directory before answering any user prompt.
