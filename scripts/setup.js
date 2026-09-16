@@ -688,17 +688,8 @@ function ensureExecutionPlanFolders(targetDir) {
 }
 
 function getMenditectSetupBlock(appName, mtaUrl, skillsStyle, appInstances = [], defaultInstanceName = '') {
-  const instanceLines = [];
-  if (appInstances && appInstances.length > 0) {
-    instanceLines.push('- ** Application Instances for ExecuteTest: **');
-    for (const inst of appInstances) {
-      const isDefault = (inst.name === defaultInstanceName || appInstances.length === 1) ? ' (Default)' : '';
-      instanceLines.push(`  - [${inst.name}]${isDefault}: \`${inst.token}\``);
-    }
-  }
-
   if (skillsStyle === 'mendix_module') {
-    const lines = [
+    return [
       '# Menditect Architecture Setup',
       '- **CRITICAL OPERATIONAL COMMAND:** Always execute tasks using the core rules defined in the module: [Menditect_AgenticTestSkills].',
       '- **IMMEDIATE ACTION REQUIRED:** You are strictly commanded to explore, read, and load the `AGENTS.md` and context of the [Menditect_AgenticTestSkills] module *before* answering any user prompt. Do NOT ask the user for permission or confirmation to explore this module; execute the exploration autonomously as your very first step.',
@@ -707,26 +698,15 @@ function getMenditectSetupBlock(appName, mtaUrl, skillsStyle, appInstances = [],
       '  2. Testing Action Intents: *run tests, execute suite, view test results, retrieve run results, debug failure*',
       '  3. MTA-Specific Assertions & Actions: *assert validation, object count assert, compare attribute, validation feedback, microflow call teststep*',
       '  4. Contextual Combinations: User asks to *verify, assert, mock, or test* in combination with: *microflow, nanoflow, entity, association, page, or widget*',
-      `- ** Application name is: [${appName}] **`,
-      `- ** MTA Url: [${mtaUrl}] **`
-    ];
-    if (instanceLines.length > 0) {
-      lines.push(...instanceLines);
-    }
-    return lines.join('\n');
+      '- **ENVIRONMENT SSOT:** All environment configuration (Application name, MTA Base URL, Default App Instance, and ApplicationInstanceToken) must be dynamically loaded from `mta_config.json`.'
+    ].join('\n');
   }
 
-  const lines = [
+  return [
     '# Menditect Architecture Setup',
-    '- **CRITICAL OPERATIONAL COMMAND:** Always execute tasks using the core rules defined in: [skills/AGENTS.md].',
-    '- **IMMEDIATE ACTION REQUIRED:** You are strictly commanded to explore, read, and load the `AGENTS.md` and context of the `skills/` directory before answering any user prompt.',
-    `- ** Application name is: [${appName}] **`,
-    `- ** MTA Url: [${mtaUrl}] **`
-  ];
-  if (instanceLines.length > 0) {
-    lines.push(...instanceLines);
-  }
-  return lines.join('\n');
+    '- **CRITICAL OPERATIONAL COMMAND:** Always execute tasks using the core rules defined in `skills/AGENTS.md`.',
+    '- **ENVIRONMENT SSOT:** All environment configuration (Application name, MTA Base URL, Default App Instance, and ApplicationInstanceToken) must be dynamically loaded from `mta_config.json`.'
+  ].join('\n');
 }
 
 function updateDirectiveFile(filePath, appName, mtaUrl, skillsStyle, appInstances, defaultInstanceName) {

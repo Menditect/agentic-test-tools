@@ -307,9 +307,8 @@ function checkAgentDirectives() {
       try {
         const content = fs.readFileSync(item.path, 'utf8');
         const hasSetup = content.includes('# Menditect Architecture Setup');
-        const hasApp = content.includes('Application name is:');
-        const hasUrl = content.includes('MTA Url:');
-        if (!hasSetup || !hasApp || !hasUrl) {
+        const hasSsot = content.includes('ENVIRONMENT SSOT') || content.includes('mta_config.json');
+        if (!hasSetup || !hasSsot) {
           allIntact = false;
           console.warn(`  [WARN] ${item.name} is missing the Menditect Architecture Setup directives!`);
           console.warn(`         This can occur if "mxcli init" was executed directly.`);

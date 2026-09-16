@@ -27,9 +27,5 @@ When working with Mendix, remember:
   3. Prompt the user for explicit confirmation before applying any updates.
 
 # Menditect Architecture Setup
-- **CRITICAL OPERATIONAL COMMAND:** Always execute tasks using the core rules defined in: [skills/AGENTS.md].
-- **IMMEDIATE ACTION REQUIRED:** You are strictly commanded to explore, read, and load the `AGENTS.md` and context of the `skills/` directory before answering any user prompt.
-- ** Application name is: [Menditect_CarRental_Insurance] **
-- ** MTA Url: [https://mta-trial.mendixcloud.com] **
-- ** Application Instances for ExecuteTest: **
-  - [Markus mta-trial-cloud] (Default): `d5c7c3b5-dbd8-4f7a-99ed-47d5e3cf7873`
+- **CRITICAL OPERATIONAL COMMAND:** Always execute tasks using the core rules defined in `skills/AGENTS.md`.
+- **ENVIRONMENT SSOT:** All environment configuration (Application name, MTA Base URL, Default App Instance, and ApplicationInstanceToken) must be dynamically loaded from `mta_config.json`.

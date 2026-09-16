@@ -129,7 +129,7 @@ The setup wizard automatically:
 2. Synchronizes official Menditect Agentic Test Skills from the public upstream repository (`Menditect/agentic-test-skills`) into your designated skills folder (`skills/` or module path), and aligns the canonical `mta_config.schema.json` contract.
 3. Initializes or refreshes Mendix AI scaffolding via `mxcli init` (`.ai-context/skills/`, `docs/brain/`, and `.mxcli/`), preserving any pre-existing custom `AGENTS.md` instructions.
 4. Generates and merges IDE configurations in `.vscode/mcp.json`, `.vscode/settings.json`, `.cursor/mcp.json`, and `.claude/settings.json` in your selected workspace without overwriting existing settings or permissions.
-5. Appends the **Menditect Architecture Setup** block (including the application instances mapping) to the project-level `AGENTS.md` (and other agent files), preserving existing rules.
+5. Appends the **Menditect Architecture Setup** block to the project-level `AGENTS.md` (and other agent files), commanding agents to dynamically load configuration from `mta_config.json` as the Single Source of Truth (SSOT).
 6. Deploys local `./mxcli` wrappers into your workspace so model inspection commands work out of the box.
 7. Compiles the Mendix project catalog (`.mxcli/catalog.db`) with full model metadata, activities, widgets, references, and MDL source definitions (`REFRESH CATALOG SOURCE FORCE`), providing advance duration warnings and interactive options for large projects.
 
@@ -350,7 +350,7 @@ You can instantly restore your directives without running through the interactiv
 npm run setup:directives
 ```
 
-This reads your existing `mta_config.json` and immediately re-injects the required application name, MTA URLs, and runtime instance tokens into `AGENTS.md`, `CLAUDE.md`, and `GEMINI.md`.
+This re-injects the standardized Menditect Architecture Setup block into `AGENTS.md`, `CLAUDE.md`, and `GEMINI.md`, enforcing `mta_config.json` as the Single Source of Truth.
 
 ---
 
