@@ -249,7 +249,7 @@ async function makeRequest(payloadString, requestId, retryCount = 0) {
     const res = await sendHttp(payloadString);
 
     // Detect stale or broken session and auto-heal
-    if (res.statusCode >= 400 && isSessionError(res.statusCode, res.body) && (mode === 'plugin' || mode === 'studiopro') && retryCount < 2) {
+    if (res.statusCode >= 400 && isSessionError(res.statusCode, res.body) && retryCount < 2) {
       sessionId = null;
       const reinitialized = await ensureUpstreamInitialized();
       if (reinitialized) {
@@ -285,7 +285,37 @@ async function makeRequest(payloadString, requestId, retryCount = 0) {
       return;
     }
 
-    const isToolsList = parsedReq.method === 'tools/list';
+    const isToolsList = parsedReq && parsedReq.method === 'tools/list';
+
+    function processJsonObject(obj) {
+      if (isToolsList && obj && obj.result && Array.isArray(obj.result.tools)) {
+        if (process.env.FILTER_TOOLS === 'true') {
+          obj.result.tools = obj.result.tools.filter(t => CORE_TOOLS.has(t.name));
+        }
+        obj.result.tools.sort((a, b) => {
+          const aPriority = CORE_TOOLS.has(a.name) ? 0 : 1;
+          const bPriority = CORE_TOOLS.has(b.name) ? 0 : 1;
+          return aPriority - bPriority;
+        });
+        cachedTools = obj.result.tools;
+      }
+      return obj;
+    }
+
+    // 1. If whole response body is a valid JSON object, output as a single clean line
+    const trimmedBody = res.body.trim();
+    if (trimmedBody.startsWith('{') || trimmedBody.startsWith('[')) {
+      try {
+        const obj = JSON.parse(trimmedBody);
+        const processed = processJsonObject(obj);
+        process.stdout.write(JSON.stringify(processed) + '\n');
+        return;
+      } catch (e) {
+        // If not valid single JSON, proceed to SSE / line-by-line parsing
+      }
+    }
+
+    // 2. Handle SSE streams or line-delimited events
     const lines = res.body.split('\n');
     for (let l of lines) {
       l = l.trim();
@@ -295,24 +325,13 @@ async function makeRequest(payloadString, requestId, retryCount = 0) {
         continue;
       }
       if (l) {
-        if (isToolsList) {
-          try {
-            const respObj = JSON.parse(l);
-            if (respObj.result && Array.isArray(respObj.result.tools)) {
-              if (process.env.FILTER_TOOLS === 'true') {
-                respObj.result.tools = respObj.result.tools.filter(t => CORE_TOOLS.has(t.name));
-              }
-              respObj.result.tools.sort((a, b) => {
-                const aPriority = CORE_TOOLS.has(a.name) ? 0 : 1;
-                const bPriority = CORE_TOOLS.has(b.name) ? 0 : 1;
-                return aPriority - bPriority;
-              });
-              cachedTools = respObj.result.tools;
-              l = JSON.stringify(respObj);
-            }
-          } catch (e) {}
+        try {
+          const respObj = JSON.parse(l);
+          const processed = processJsonObject(respObj);
+          process.stdout.write(JSON.stringify(processed) + '\n');
+        } catch (e) {
+          process.stdout.write(l + '\n');
         }
-        process.stdout.write(l + '\n');
       }
     }
   } catch (err) {

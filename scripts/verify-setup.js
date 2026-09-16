@@ -445,7 +445,7 @@ function verifyMode(mode) {
     const proc = spawn('node', [proxyPath, mode], { stdio: ['pipe', 'pipe', 'inherit'] });
     
     let responseData = '';
-    const timeoutMs = mode === 'mta' ? 20000 : 10000;
+    const timeoutMs = mode === 'mta' ? 25000 : 10000;
     let timeout = setTimeout(() => {
       console.error(`Timeout waiting for ${mode} MCP server (${timeoutMs / 1000}s elapsed).`);
       if (mode === 'mta') {
@@ -456,28 +456,41 @@ function verifyMode(mode) {
       resolve(false);
     }, timeoutMs);
     
+    function evaluateResponseObject(res) {
+      if (!res) return false;
+      if (res.id === 1 && res.result && res.result.tools) {
+        clearTimeout(timeout);
+        console.log(`[PASS] ${mode} MCP Server is responding correctly (${res.result.tools.length} tools found).`);
+        proc.kill();
+        resolve(true);
+        return true;
+      } else if (res.error) {
+        clearTimeout(timeout);
+        console.error(`[FAIL] ${mode} MCP Server returned an error:`, res.error.message);
+        proc.kill();
+        resolve(false);
+        return true;
+      }
+      return false;
+    }
+
     proc.stdout.on('data', (data) => {
       responseData += data.toString();
       if (responseData.includes('jsonrpc')) {
+        // Try parsing the entire response buffer
         try {
-          const lines = responseData.split('\n');
-          for (const line of lines) {
-            if (!line.trim()) continue;
-            const res = JSON.parse(line);
-            if (res.id === 1 && res.result && res.result.tools) {
-              clearTimeout(timeout);
-              console.log(`[PASS] ${mode} MCP Server is responding correctly (${res.result.tools.length} tools found).`);
-              proc.kill();
-              return resolve(true);
-            } else if (res.error) {
-              clearTimeout(timeout);
-              console.error(`[FAIL] ${mode} MCP Server returned an error:`, res.error.message);
-              proc.kill();
-              return resolve(false);
-            }
-          }
-        } catch (e) {
-          // Keep buffering
+          const fullObj = JSON.parse(responseData.trim());
+          if (evaluateResponseObject(fullObj)) return;
+        } catch (e) {}
+
+        // Try parsing line-by-line
+        const lines = responseData.split('\n');
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          try {
+            const res = JSON.parse(line.trim());
+            if (evaluateResponseObject(res)) return;
+          } catch (e) {}
         }
       }
     });
