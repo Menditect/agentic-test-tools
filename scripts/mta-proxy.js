@@ -161,7 +161,7 @@ function sendHttp(payloadString, customHeaders = {}) {
       path: urlObj.pathname + urlObj.search,
       method: 'POST',
       headers: headers,
-      timeout: 8000
+      timeout: mode === 'mta' ? 25000 : 10000
     };
 
     const req = transport.request(options, (res) => {

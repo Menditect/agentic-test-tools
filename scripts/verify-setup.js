@@ -445,11 +445,16 @@ function verifyMode(mode) {
     const proc = spawn('node', [proxyPath, mode], { stdio: ['pipe', 'pipe', 'inherit'] });
     
     let responseData = '';
+    const timeoutMs = mode === 'mta' ? 20000 : 10000;
     let timeout = setTimeout(() => {
-      console.error(`Timeout waiting for ${mode} MCP server.`);
+      console.error(`Timeout waiting for ${mode} MCP server (${timeoutMs / 1000}s elapsed).`);
+      if (mode === 'mta') {
+        console.error('  [TIP] Check internet connectivity to your MTA cloud instance and ensure');
+        console.error('        MTA_MCP_AUTH_HEADER in .env contains a valid Menditect Bearer token.');
+      }
       proc.kill();
       resolve(false);
-    }, 5000);
+    }, timeoutMs);
     
     proc.stdout.on('data', (data) => {
       responseData += data.toString();
