@@ -354,8 +354,8 @@ async function handleConnectionError(payloadString, requestId, err, retryCount) 
   const isToolsList = parsedReq && parsedReq.method === 'tools/list';
   const isToolsCall = parsedReq && parsedReq.method === 'tools/call';
 
-  // If server is offline during tools/list, return fallback or cached schema without crashing
-  if (isLocalServer && isToolsList) {
+  // If server is offline during tools/list, return fallback or cached schema without crashing (disabled in verification mode)
+  if (isLocalServer && isToolsList && process.env.MCP_VERIFY_MODE !== 'true') {
     if (mode === 'plugin') {
       const fallbackResponse = JSON.parse(JSON.stringify(FALLBACK_PLUGIN_SCHEMA));
       fallbackResponse.id = requestId;

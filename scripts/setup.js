@@ -936,57 +936,36 @@ async function run(options = {}) {
   let activeConfig = null;
 
   if (discoveredMta && discoveredMta.instances && discoveredMta.instances.length > 0) {
-    console.log(`\n[FOUND] Discovered ${discoveredMta.instances.length} App Instance Token(s) across Mendix project configurations:`);
-    discoveredMta.instances.forEach((inst, idx) => {
+    appInstances = discoveredMta.instances;
+    console.log(`\n[FOUND] Discovered ${appInstances.length} App Instance Token(s) across Mendix project configurations:`);
+    appInstances.forEach((inst, idx) => {
       const previewToken = inst.token.length > 12 ? `${inst.token.slice(0, 8)}...${inst.token.slice(-4)}` : inst.token;
       const urlInfo = inst.mtaUrl ? ` -> MTA: ${inst.mtaUrl}` : '';
       console.log(`  [${idx + 1}] ${inst.name.padEnd(25)} (Token: ${previewToken})${urlInfo}`);
     });
 
-    let selection = null;
-    while (!selection || selection.type === 'invalid') {
-      const choice = await ask('\nSelect instances to use (\'all\', comma-separated numbers e.g. 1,3,6, or \'none\')', 'all');
-      selection = parseInstanceSelection(choice, discoveredMta.instances);
-      if (selection.type === 'invalid') {
-        if (rl && rl.closed) {
-          selection = { type: 'all', selected: discoveredMta.instances };
-          break;
-        }
-        console.log(`[NOTICE] Invalid selection. Enter 'all', 'none', or numbers between 1 and ${discoveredMta.instances.length}.`);
+    if (appInstances.length === 1) {
+      defaultInstanceName = appInstances[0].name;
+      defaultInstanceToken = appInstances[0].token;
+      activeConfig = appInstances[0];
+      console.log(`\nActive default instance: [${defaultInstanceName}]`);
+    } else {
+      let defaultIdx = 1;
+      if (existingConfig.default_app_instance) {
+        const foundIdx = appInstances.findIndex(x => x.name.toLowerCase() === existingConfig.default_app_instance.toLowerCase());
+        if (foundIdx >= 0) defaultIdx = foundIdx + 1;
       }
-    }
 
-    if (selection.type === 'all' || selection.type === 'subset') {
-      appInstances = selection.selected;
-
-      if (appInstances.length === 1) {
-        defaultInstanceName = appInstances[0].name;
-        defaultInstanceToken = appInstances[0].token;
-        activeConfig = appInstances[0];
-        console.log(`Active default instance: [${defaultInstanceName}]`);
-      } else {
-        console.log('\nSelected application instances:');
-        appInstances.forEach((inst, idx) => {
-          const previewToken = inst.token.length > 12 ? `${inst.token.slice(0, 8)}...${inst.token.slice(-4)}` : inst.token;
-          const urlInfo = inst.mtaUrl ? ` -> MTA: ${inst.mtaUrl}` : '';
-          console.log(`  [${idx + 1}] ${inst.name.padEnd(25)} (Token: ${previewToken})${urlInfo}`);
-        });
-
-        const defaultSel = existingConfig.default_app_instance
-          ? String(Math.max(1, appInstances.findIndex(x => x.name === existingConfig.default_app_instance) + 1 || 1))
-          : '1';
-
-        let selectionIdx = 1;
-        const choice = await ask(`\nSelect active default instance for ExecuteTest (1-${appInstances.length})`, defaultSel);
-        const parsed = parseInt(choice, 10);
-        if (!isNaN(parsed) && parsed >= 1 && parsed <= appInstances.length) {
-          selectionIdx = parsed;
-        }
-        defaultInstanceName = appInstances[selectionIdx - 1].name;
-        defaultInstanceToken = appInstances[selectionIdx - 1].token;
-        activeConfig = appInstances[selectionIdx - 1];
-        console.log(`Active default instance: [${defaultInstanceName}]`);
+      let selectionIdx = defaultIdx;
+      const choice = await ask(`\nSelect active default instance for ExecuteTest (1-${appInstances.length})`, String(defaultIdx));
+      const parsed = parseInt(choice, 10);
+      if (!isNaN(parsed) && parsed >= 1 && parsed <= appInstances.length) {
+        selectionIdx = parsed;
       }
+      defaultInstanceName = appInstances[selectionIdx - 1].name;
+      defaultInstanceToken = appInstances[selectionIdx - 1].token;
+      activeConfig = appInstances[selectionIdx - 1];
+      console.log(`Active default instance: [${defaultInstanceName}]`);
     }
   }
 

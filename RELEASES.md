@@ -4,6 +4,7 @@ This page lists all the releases of the Menditect Agent Workspace Template, with
 
 | Release Version | Date | Key Highlights / Release Message |
 | :--- | :--- | :--- |
+| [v1.7.0](releases/v1.7.0.md) | 2026-09-17 | improved setup and diagnostics |
 | [v1.6.3](releases/v1.6.3.md) | 2026-09-16 | improved verification of mcp servers |
 | [v1.6.2](releases/v1.6.2.md) | 2026-09-16 | improved mta_config settings |
 | [v1.6.1](releases/v1.6.1.md) | 2026-09-16 | improved updating of skills and mxcli |

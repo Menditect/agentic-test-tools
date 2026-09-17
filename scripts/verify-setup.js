@@ -442,10 +442,13 @@ function verifyMode(mode) {
   return new Promise((resolve) => {
     console.log(`Verifying ${mode} MCP server...`);
     checkTokenPreflight(mode);
-    const proc = spawn('node', [proxyPath, mode], { stdio: ['pipe', 'pipe', 'inherit'] });
+    const proc = spawn('node', [proxyPath, mode], {
+      stdio: ['pipe', 'pipe', 'inherit'],
+      env: { ...process.env, MCP_VERIFY_MODE: 'true' }
+    });
     
     let responseData = '';
-    const timeoutMs = mode === 'mta' ? 25000 : 10000;
+    const timeoutMs = mode === 'mta' ? 25000 : 8000;
     let timeout = setTimeout(() => {
       console.error(`Timeout waiting for ${mode} MCP server (${timeoutMs / 1000}s elapsed).`);
       if (mode === 'mta') {
@@ -453,22 +456,35 @@ function verifyMode(mode) {
         console.error('        MTA_MCP_AUTH_HEADER in .env contains a valid Menditect Bearer token.');
       }
       proc.kill();
-      resolve(false);
+      resolve({ success: false, offline: false, message: `Timeout waiting for ${mode} MCP server` });
     }, timeoutMs);
     
     function evaluateResponseObject(res) {
       if (!res) return false;
       if (res.id === 1 && res.result && res.result.tools) {
         clearTimeout(timeout);
-        console.log(`[PASS] ${mode} MCP Server is responding correctly (${res.result.tools.length} tools found).`);
+        console.log(`  [PASS] ${mode} MCP Server is responding correctly (${res.result.tools.length} tools found).`);
         proc.kill();
-        resolve(true);
+        resolve({ success: true, offline: false, count: res.result.tools.length });
         return true;
       } else if (res.error) {
         clearTimeout(timeout);
-        console.error(`[FAIL] ${mode} MCP Server returned an error:`, res.error.message);
-        proc.kill();
-        resolve(false);
+        const errMsg = res.error.message || '';
+        const isOffline = errMsg.includes('offline') || errMsg.includes('ECONNREFUSED') || errMsg.includes('restarting');
+        if (mode === 'plugin' && isOffline) {
+          console.log(`  [NOTICE] Plugin MCP Server is offline (Mendix app is not running locally).`);
+          console.log(`           Local test execution will be available when your app is running in Studio Pro.`);
+          proc.kill();
+          resolve({ success: true, offline: true, message: errMsg });
+        } else if (mode === 'studiopro' && isOffline) {
+          console.warn(`  [WARN] Studio Pro MCP is offline (Studio Pro is not running on port 7782).`);
+          proc.kill();
+          resolve({ success: false, offline: true, message: errMsg });
+        } else {
+          console.error(`  [FAIL] ${mode} MCP Server returned an error:`, errMsg);
+          proc.kill();
+          resolve({ success: false, offline: false, message: errMsg });
+        }
         return true;
       }
       return false;
@@ -477,13 +493,11 @@ function verifyMode(mode) {
     proc.stdout.on('data', (data) => {
       responseData += data.toString();
       if (responseData.includes('jsonrpc')) {
-        // Try parsing the entire response buffer
         try {
           const fullObj = JSON.parse(responseData.trim());
           if (evaluateResponseObject(fullObj)) return;
         } catch (e) {}
 
-        // Try parsing line-by-line
         const lines = responseData.split('\n');
         for (const line of lines) {
           if (!line.trim()) continue;
@@ -497,9 +511,9 @@ function verifyMode(mode) {
     
     proc.on('close', () => {
       clearTimeout(timeout);
-      resolve(false);
+      resolve({ success: false, offline: false, message: 'Process closed unexpectedly' });
     });
-    
+
     const request = JSON.stringify({
       jsonrpc: '2.0',
       id: 1,
@@ -553,21 +567,21 @@ async function run() {
   checkPlaywrightTraceSettings();
   console.log();
 
-  const mtaOk = await verifyMode('mta');
+  const mtaResult = await verifyMode('mta');
   console.log();
-  const pluginOk = await verifyMode('plugin');
+  const pluginResult = await verifyMode('plugin');
   console.log();
 
-  let spOk = true;
+  let spResult = { success: true };
   if (config.model_source === 'studiopro') {
-    spOk = await verifyMode('studiopro');
+    spResult = await verifyMode('studiopro');
     console.log();
   }
   
-  if (mtaOk && pluginOk && spOk) {
-    console.log('Verification Complete. All MCP servers and configuration checks passed.');
+  if (mtaResult.success && pluginResult.success && spResult.success) {
+    console.log('Verification Complete. Workspace configuration and required MCP services are verified.');
   } else {
-    console.log('Verification Failed. Please check your config and ensure the Mendix app is running if testing the plugin.');
+    console.log('Verification Failed. Please check the errors above and ensure your .env credentials are valid.');
   }
 }
 
