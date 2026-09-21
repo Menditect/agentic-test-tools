@@ -18,7 +18,7 @@ Before starting, ensure you have:
 
 - **[Node.js](https://nodejs.org/) (v18+)** installed (required to run the setup script and local MCP proxies).
 - **[Git](https://git-scm.com/)** installed (used to sync upstream testing skills).
-- Access to MTA and with a service account token (with CallMCPTools: Enabled)
+- Access to MTA and with a service account token (with Call MCP primitive tools: Enabled)
 - A Mendix application under test (typically running on `http://localhost:8081`).
 - MTA Plugin must be installed and connected with MTA (LINK NAAR URL)
 
