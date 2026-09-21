@@ -778,38 +778,20 @@ async function run(options = {}) {
   } catch (e) {}
 
   // 1. Detailed breakdown of files & Git impact before choosing workspace
-  console.log('Before choosing your workspace, review where files will be placed and how Git is affected:\n');
+  console.log('Before choosing your workspace, review the options:\n');
 
-  console.log('[1] Dedicated Tools Workspace (Clone root: ' + toolsRootDir + ')');
-  console.log('    - Placed in agentic-test-tools:');
-  console.log('      * skills/ (MTA test design, build, and run skills)');
-  console.log('      * .ai-context/skills/ (72+ Mendix AI skills initialized via mxcli init)');
-  console.log('      * .mxcli/ (local operational queue for decisions and caching; git-ignored)');
-  console.log('      * .vscode/, .cursor/, .claude/ IDE configuration files');
-  console.log('      * AGENTS.md, CLAUDE.md, GEMINI.md');
-  console.log('      * menditect-output/execution-plans/ (in-place plan updates tracked via Git)');
-  console.log('      * bin/mxcli.exe and root ./mxcli runner scripts');
-  console.log('    - Git Impact:');
-  console.log('      * ZERO files created or modified in your Mendix project repository.');
-  console.log('      * Keeps your Mendix project Git history completely untouched.\n');
+  console.log('[1] Dedicated Tools Workspace (Recommended for test isolation)');
+  console.log('    - Pros: Test skills, directives, and execution plans stay isolated in this tools repository, keeping your Mendix Git history focused on app code.');
+  console.log('    - Cons: You open your AI editor in this tools folder rather than directly inside your Mendix project.');
+  console.log('    - Note: mxcli still generates a local .mxcli/ folder (catalog.db cache) in your Mendix project.\n');
 
-  console.log('[2] Direct Mendix Project Workspace (Your local Mendix project folder)');
-  console.log('    - Placed in your Mendix project:');
-  console.log('      * Skills: skillssource/_modules/menditect_agentictestskills/ (if Mendix 11.12+ and module installed) or ./skills/');
-  console.log('      * AI Scaffolding: .ai-context/skills/ (72+ Mendix AI skills initialized via mxcli init), docs/brain/');
-  console.log('      * Local Working Directory: .mxcli/ (local staging queue; automatically added to .gitignore)');
-  console.log('      * Directives: Appends Menditect Setup to project AGENTS.md (existing rules preserved)');
-  console.log('      * IDE Configs: Merged into .vscode/, .cursor/, and .claude/ (preserves existing permissions)');
-  console.log('      * Local Runners: mxcli.bat and ./mxcli deployed in project root');
-  console.log('      * Execution Plans: menditect-output/execution-plans/ (in-place plan updates tracked via Git)');
-  console.log('    - Git Impact (Important for Mendix Repositories):');
-  console.log('      * Typical Mendix projects have their own Git repositories.');
-  console.log('      * All files created will be tracked by your Mendix project Git repository,');
-  console.log('        allowing your entire team to share skills and agent configs directly with the app.\n');
+  console.log('[2] Direct Mendix Project Workspace (All-in-one in your app)');
+  console.log('    - Pros: You open your AI editor directly in your Mendix project folder. Directives, skills, and plans are tracked in your project Git and shared across your team.');
+  console.log('    - Cons: Adds agent configuration files and test artifacts directly into your Mendix project Git repository.\n');
 
   console.log('[3] Other Custom Directory');
-  console.log('    - Files placed in your specified directory.');
-  console.log('    - Git Impact: Isolated to that custom directory.\n');
+  console.log('    - Pros: Complete flexibility to specify an external or shared location for configs and test outputs.');
+  console.log('    - Cons: Requires manual path configuration and maintenance outside standard workflows.\n');
 
   let defaultWorkspaceChoice = '1';
   if (existingConfig.workspace_type === 'mendix_project') defaultWorkspaceChoice = '2';
@@ -822,11 +804,7 @@ async function run(options = {}) {
 
   // 2. Mendix Project Directory and .mpr inspection
   let projectDir = existingConfig.mendix_project_dir || '';
-  if (workspaceChoice === '2') {
-    projectDir = await ask('Mendix Project Directory', projectDir || process.cwd());
-  } else {
-    projectDir = await ask('Mendix Project Directory (for mxcli model reading)', projectDir || process.cwd());
-  }
+  projectDir = await ask('Local Mendix App to test (project folder containing .mpr)', projectDir || process.cwd());
 
   let mprPath = '';
   const foundMpr = findMpr(projectDir);
@@ -851,6 +829,27 @@ async function run(options = {}) {
     const ans = await ask('Is this project running Mendix 11.12 or higher? (Module-level skills require 11.12+) (y/n)', 'y');
     isMendix1112Plus = ans.toLowerCase().startsWith('y');
   }
+
+  // 2b. Model Inspection Source Selection
+  console.log('\n--- Model Inspection Source ---');
+  console.log('Why choose if mxcli is already installed?');
+  console.log('Even though mxcli is bundled and ready to read your project files offline, you can choose how the AI inspects your Mendix model:\n');
+  console.log('  [1] mxcli (Recommended / Standalone):');
+  console.log('      Reads your .mpr file directly from disk. Fast, works offline, and does NOT');
+  console.log('      require Mendix Studio Pro to be open. Best for headless agents and CI/CD.');
+  console.log('  [2] Studio Pro MCP (Live IDE):');
+  console.log('      Connects live to an open Studio Pro session (port 7782, requires Mendix 11.12+).');
+  console.log('      Use this if you want the AI to interact with live in-memory changes while you work.\n');
+
+  let defaultModelChoice = existingConfig.model_source === 'studiopro' ? '2' : '1';
+  let modelSource = '';
+  while (modelSource !== '1' && modelSource !== '2') {
+    modelSource = await ask('Select Model Source: [1] mxcli (recommended), [2] Studio Pro MCP', defaultModelChoice);
+    if (modelSource === '2' && detectedVersion && !isMendix1112Plus) {
+      console.log(`\n[WARNING] Studio Pro MCP requires Mendix 11.12 or higher (detected version: ${detectedVersion}).`);
+    }
+  }
+  const mcpSource = modelSource === '2' ? 'studiopro' : 'mxcli';
 
   // 3. Resolve Workspace Directory & Skills Destination
   let workspaceType = 'clone_root';
@@ -948,7 +947,8 @@ async function run(options = {}) {
       defaultInstanceName = appInstances[0].name;
       defaultInstanceToken = appInstances[0].token;
       activeConfig = appInstances[0];
-      console.log(`\nActive default instance: [${defaultInstanceName}]`);
+      console.log(`\nDefault instance: [${defaultInstanceName}]`);
+      console.log(`*(Note: The selected instance must be running and connected to MTA when you execute tests)*`);
     } else {
       let defaultIdx = 1;
       if (existingConfig.default_app_instance) {
@@ -957,7 +957,8 @@ async function run(options = {}) {
       }
 
       let selectionIdx = defaultIdx;
-      const choice = await ask(`\nSelect active default instance for ExecuteTest (1-${appInstances.length})`, String(defaultIdx));
+      console.log(`\n*(Note: The selected instance must be running and connected to MTA when you execute tests)*`);
+      const choice = await ask(`Select default instance for ExecuteTest (1-${appInstances.length})`, String(defaultIdx));
       const parsed = parseInt(choice, 10);
       if (!isNaN(parsed) && parsed >= 1 && parsed <= appInstances.length) {
         selectionIdx = parsed;
@@ -965,7 +966,7 @@ async function run(options = {}) {
       defaultInstanceName = appInstances[selectionIdx - 1].name;
       defaultInstanceToken = appInstances[selectionIdx - 1].token;
       activeConfig = appInstances[selectionIdx - 1];
-      console.log(`Active default instance: [${defaultInstanceName}]`);
+      console.log(`Default instance: [${defaultInstanceName}]`);
     }
   }
 
@@ -1008,7 +1009,8 @@ async function run(options = {}) {
       const defaultSel = existingConfig.default_app_instance
         ? String(appInstances.findIndex(x => x.name === existingConfig.default_app_instance) + 1 || 1)
         : '1';
-      const choice = await ask(`Select active default instance for ExecuteTest (1-${appInstances.length})`, defaultSel);
+      console.log(`\n*(Note: The selected instance must be running and connected to MTA when you execute tests)*`);
+      const choice = await ask(`Select default instance for ExecuteTest (1-${appInstances.length})`, defaultSel);
       const parsed = parseInt(choice, 10);
       if (!isNaN(parsed) && parsed >= 1 && parsed <= appInstances.length) {
         selIdx = parsed;
@@ -1016,17 +1018,30 @@ async function run(options = {}) {
     }
     defaultInstanceName = appInstances[selIdx - 1].name;
     defaultInstanceToken = appInstances[selIdx - 1].token;
+    console.log(`Default instance: [${defaultInstanceName}]`);
   }
 
   console.log('\n--- MTA Connection Settings ---');
+  // 1. Application Name
+  const defaultAppName = mprPath
+    ? path.basename(mprPath, path.extname(mprPath))
+    : (existingConfig.application_name || (projectDir ? path.basename(projectDir) : 'MyApp'));
+  const appName = await ask('Application Name', defaultAppName);
+
+  // 2. MTA URL
   const defaultMtaUrl = activeConfig?.mtaUrl || discoveredMta?.globalMtaUrl || existingConfig.mta_base_url || 'https://mta-trial.mendixcloud.com';
   const mtaUrl = await ask('MTA URL', defaultMtaUrl);
   const mcpEndpoint = mtaUrl.replace(/\/$/, '') + '/primitivetools/mcp';
 
+  // 3. MTA Bearer Token
+  console.log('\n(MTA Bearer Token: An authentication token allowing AI MCP tools to communicate securely with MTA.');
+  console.log(' In the MTA Portal as ServiceAccountManager, go to Service account overview, create a ServiceAccount,');
+  console.log(' and ensure "Call MCP primitive tools = Enabled" is checked.)');
   const defaultMtaToken = process.env.MTA_MCP_AUTH_HEADER || existingConfig.mta_auth_header || '';
   const rawMtaToken = await ask('MTA Bearer Token (e.g. Bearer <token> or raw token)', defaultMtaToken);
   const mtaAuthHeader = formatBearerToken(rawMtaToken);
   
+  // 4. App under test Plugin URL
   const defaultPluginUrl = activeConfig?.pluginUrl
     || (discoveredMta?.globalPluginUrl)
     || (activeConfig?.pluginPort ? `http://localhost:${activeConfig.pluginPort}/plugin/mcp` : null)
@@ -1035,23 +1050,15 @@ async function run(options = {}) {
     || 'http://localhost:8081/plugin/mcp';
   const pluginUrl = await ask('App under test Plugin URL', defaultPluginUrl);
 
+  // 5. App under test Plugin Token
+  console.log('\n(App under test Plugin Token: Security token protecting the MtaPluginModule MCP endpoint in your running app.');
+  console.log(' Configured in Studio Pro via constant MtaPluginModule.McpServerAccessToken. For local development, typically "1" or "Bearer 1".)');
   const defaultPluginToken = process.env.PLUGIN_MCP_TOKEN || activeConfig?.pluginToken || discoveredMta?.globalPluginToken || existingConfig.plugin_mcp_token || 'Bearer 1';
   const rawPluginToken = await ask('App under test Plugin Token (Bearer token recommended)', defaultPluginToken);
   const pluginToken = formatBearerToken(rawPluginToken);
   
   const defaultPlaywrightViewerUrl = existingConfig.playwright_viewer_url || 'https://trace.playwright.dev/?trace=';
   const defaultTracefileBaseUrl = existingConfig.tracefile_base_url || (mtaUrl ? `${mtaUrl.replace(/\/$/, '')}/rest/private/tracefile?fileUUID=` : '');
-
-  let modelSource = '';
-  while (modelSource !== '1' && modelSource !== '2') {
-    modelSource = await ask('Model Source: [1] mxcli, [2] Studio Pro MCP', existingConfig.model_source === 'studiopro' ? '2' : '1');
-  }
-  const mcpSource = modelSource === '2' ? 'studiopro' : 'mxcli';
-
-  const defaultAppName = mprPath
-    ? path.basename(mprPath, path.extname(mprPath))
-    : (existingConfig.application_name || (projectDir ? path.basename(projectDir) : 'MyApp'));
-  const appName = await ask('Application Name', defaultAppName);
 
   // 5. Ensure Execution Plans Storage Folder
   const { menditectOutputDir, plansDir } = ensureExecutionPlanFolders(workspaceDir);
@@ -1109,9 +1116,12 @@ async function run(options = {}) {
   }
 
   // 7. Ensure .gitignore protects credentials and write .env in workspace
-  ensureGitIgnoreEntries(workspaceDir, ['.env', '.env.local']);
+  ensureGitIgnoreEntries(workspaceDir, ['.env', '.env.local', '.mxcli/']);
   if (path.resolve(workspaceDir) !== path.resolve(toolsRootDir)) {
-    ensureGitIgnoreEntries(toolsRootDir, ['.env', '.env.local']);
+    ensureGitIgnoreEntries(toolsRootDir, ['.env', '.env.local', '.mxcli/']);
+  }
+  if (projectDir && fs.existsSync(projectDir) && path.resolve(projectDir) !== path.resolve(workspaceDir)) {
+    ensureGitIgnoreEntries(projectDir, ['.mxcli/']);
   }
 
   let envContent = `MTA_MCP_ENDPOINT="${mcpEndpoint}"
@@ -1195,7 +1205,7 @@ MTA_APP_INSTANCE_DEFAULT="${defaultInstanceName}"
   if (!skipSkills) {
     console.log(` Skills status:           ${skillsSyncSuccess ? 'Synchronized from agentic-test-skills' : 'Pending (run npm run update:skills)'}`);
   }
-  console.log(` Active App Instance:     ${defaultInstanceName}`);
+  console.log(` Default App Instance:    ${defaultInstanceName}`);
   console.log(` App Instances Total:     ${appInstances.length}`);
   console.log(` Execution plans:         ${plansDir}`);
   console.log(' Your workspace is ready! Run "npm run verify" to check MCP connectivity.');
