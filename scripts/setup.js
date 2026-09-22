@@ -344,20 +344,23 @@ async function buildProjectCatalog(mprPath, optionalBin, options = {}) {
     try { fs.mkdirSync(dotMxcliDir, { recursive: true }); } catch (e) {}
   }
 
-  console.log('\n--- Mendix Project Catalog Generation (.mxcli/catalog.db) ---');
-  console.log('[INFO] The project catalog powers MTA test design, caller/callee analysis, and full-text code search.');
-  console.log('[WARNING] Performance advisory: Compiling complete MDL source definitions (REFRESH CATALOG SOURCE)');
-  console.log('          reads the contents of every document. On large projects (thousands of microflows/pages),');
-  console.log('          this process can take multiple minutes or even up to 1 hour.');
+  let choice = options.choice !== undefined ? options.choice : 'Y';
+  if (options.choice === undefined) {
+    console.log('\n--- Mendix Project Catalog Generation (.mxcli/catalog.db) ---');
+    console.log('[INFO] The project catalog powers MTA test design, caller/callee analysis, and full-text code search.');
+    console.log('[INFO] Documentation: https://www.mxcli.org/');
+    console.log('[WARNING] Performance advisory: Compiling complete MDL source definitions (REFRESH CATALOG SOURCE)');
+    console.log('          reads the contents of every document. On large projects (thousands of microflows/pages),');
+    console.log('          this process can take multiple minutes or even up to 1 hour.');
 
-  let choice = 'Y';
-  if (options.askFn) {
-    const promptText = '\nBuild project catalog with full MDL source now? [Y/n/fast] (Y = full with source, fast = structure only, n = skip)';
-    const ans = await options.askFn(promptText, 'Y');
-    choice = ans.trim() || 'Y';
+    if (options.askFn) {
+      const promptText = '\nBuild project catalog with full MDL source now? [Y/n/fast] (Y = full with source, fast = structure only, n = skip)';
+      const ans = await options.askFn(promptText, 'Y');
+      choice = ans.trim() || 'Y';
+    }
   }
 
-  const normalized = choice.toLowerCase();
+  const normalized = (choice || 'Y').toLowerCase();
   if (normalized.startsWith('n')) {
     console.log('[INFO] Catalog generation skipped.');
     console.log('[INFO] You can build it anytime by running:');
@@ -832,11 +835,13 @@ async function run(options = {}) {
 
   // 2b. Model Inspection Source Selection
   console.log('\n--- Model Inspection Source ---');
+  console.log('Documentation: https://www.mxcli.org/');
   console.log('Why choose if mxcli is already installed?');
   console.log('Even though mxcli is bundled and ready to read your project files offline, you can choose how the AI inspects your Mendix model:\n');
   console.log('  [1] mxcli (Recommended / Standalone):');
   console.log('      Reads your .mpr file directly from disk. Fast, works offline, and does NOT');
   console.log('      require Mendix Studio Pro to be open. Best for headless agents and CI/CD.');
+  console.log('      (Documentation: https://www.mxcli.org/)');
   console.log('  [2] Studio Pro MCP (Live IDE):');
   console.log('      Connects live to an open Studio Pro session (port 7782, requires Mendix 11.12+).');
   console.log('      Use this if you want the AI to interact with live in-memory changes while you work.\n');
@@ -850,6 +855,29 @@ async function run(options = {}) {
     }
   }
   const mcpSource = modelSource === '2' ? 'studiopro' : 'mxcli';
+
+  // 2c. mxcli Options & Integration
+  console.log('\n--- mxcli Options & Integration ---');
+  console.log('For comprehensive mxcli documentation, visit: https://www.mxcli.org/\n');
+
+  let initExternalProject = false;
+  if (workspaceChoice === '1' && projectDir && fs.existsSync(projectDir) && path.resolve(projectDir) !== path.resolve(toolsRootDir)) {
+    console.log('mxcli can initialize AI context and skills (.ai-context/skills, docs/brain) in your external Mendix project repository.');
+    console.log('(See documentation: https://www.mxcli.org/)');
+    const initAns = await ask('Also initialize external Mendix project repository with mxcli init? (y/n)', 'n');
+    initExternalProject = initAns.toLowerCase().startsWith('y');
+  }
+
+  let catalogChoice = 'Y';
+  if (mprPath && fs.existsSync(mprPath)) {
+    console.log('\nThe project catalog (.mxcli/catalog.db) powers MTA test design, caller/callee analysis, and full-text code search.');
+    console.log('(See documentation: https://www.mxcli.org/)');
+    console.log('[WARNING] Performance advisory: Compiling complete MDL source definitions (REFRESH CATALOG SOURCE)');
+    console.log('          reads the contents of every document. On large projects (thousands of microflows/pages),');
+    console.log('          this process can take multiple minutes or even up to 1 hour.');
+    const promptText = 'Build project catalog with full MDL source now? [Y/n/fast] (Y = full with source, fast = structure only, n = skip)';
+    catalogChoice = await ask(promptText, 'Y');
+  }
 
   // 3. Resolve Workspace Directory & Skills Destination
   let workspaceType = 'clone_root';
@@ -1052,7 +1080,7 @@ async function run(options = {}) {
 
   // 5. App under test Plugin Token
   console.log('\n(App under test Plugin Token: Security token protecting the MtaPluginModule MCP endpoint in your running app.');
-  console.log(' Configured in Studio Pro via constant MtaPluginModule.McpServerAccessToken. For local development, typically "1" or "Bearer 1".)');
+  console.log(' Configured in Studio Pro via constant MtaPluginModule.McpServerAccessToken.)');
   const defaultPluginToken = process.env.PLUGIN_MCP_TOKEN || activeConfig?.pluginToken || discoveredMta?.globalPluginToken || existingConfig.plugin_mcp_token || 'Bearer 1';
   const rawPluginToken = await ask('App under test Plugin Token (Bearer token recommended)', defaultPluginToken);
   const pluginToken = formatBearerToken(rawPluginToken);
@@ -1171,11 +1199,8 @@ MTA_APP_INSTANCE_DEFAULT="${defaultInstanceName}"
   // 9. Initialize Mendix AI Scaffolding (mxcli init, .ai-context/skills, docs/brain, .mxcli)
   if (workspaceChoice === '1') {
     initializeMxcli(toolsRootDir, mprPath, null, { isMendixProject: false });
-    if (projectDir && fs.existsSync(projectDir) && path.resolve(projectDir) !== path.resolve(toolsRootDir)) {
-      const initProject = await ask('\nAlso initialize external Mendix project repository with mxcli init? (y/n)', 'n');
-      if (initProject.toLowerCase().startsWith('y')) {
-        initializeMxcli(projectDir, mprPath, null, { isMendixProject: true });
-      }
+    if (initExternalProject && projectDir && fs.existsSync(projectDir) && path.resolve(projectDir) !== path.resolve(toolsRootDir)) {
+      initializeMxcli(projectDir, mprPath, null, { isMendixProject: true });
     }
   } else if (workspaceChoice === '2') {
     initializeMxcli(workspaceDir, mprPath, null, { isMendixProject: true });
@@ -1192,7 +1217,7 @@ MTA_APP_INSTANCE_DEFAULT="${defaultInstanceName}"
 
   // 12. Build Mendix Project Catalog (catalog.db) for MTA test automation & code search
   if (mprPath && fs.existsSync(mprPath)) {
-    await buildProjectCatalog(mprPath, null, { askFn: ask });
+    await buildProjectCatalog(mprPath, null, { choice: catalogChoice });
   }
 
   // 13. Update Agent Directives in workspaceDir
