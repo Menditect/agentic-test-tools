@@ -10,6 +10,28 @@ The primary goal of this repository is to provide an automated, streamlined work
 
 Once the script finishes running, it outputs a complete, isolated Agentic Workspace. Opening this workspace folder in your AI assistant enables immediate end-to-end test case generation, test suite setup, and assertion configuration in MTA.
 
+## Description
+
+This repository serves as an automated setup template and toolkit for creating isolated **Agentic Test Workspaces** tailored to Mendix applications. It seamlessly integrates AI coding assistants (such as Antigravity/Gemini, Cursor, Claude Code, or GitHub Copilot) with **Menditect Test Automation (MTA)** and Mendix model inspection tools (`mxcli`), enabling autonomous end-to-end test case design, execution, exploratory testing, and debugging.
+
+### Use cases
+
+#### 1. AI-Assisted Test Automation in MTA
+- **Overview:** Enables AI assistants (e.g., Antigravity/Gemini, Cursor, Claude Code, GitHub Copilot) to design, build, execute, and maintain automated test suites and test cases directly within the Menditect Test Automation (MTA) platform.
+- **Key Capabilities:**
+  - Automated creation and configuration of test suites, test cases, and test steps.
+  - Deep model-driven test design by inspecting Mendix domain models, microflows, and decision logic (via `mxcli` or Studio Pro MCP).
+  - Persistent Execution Plan management (`EP_*.md`) and test result analysis.
+- **Prerequisites:** Requires an active **MTA License** and a Service Account Bearer Token with *Primitive Tools* enabled on your MTA server.
+
+#### 2. In-Memory Exploratory Testing (Runtime Plugin)
+- **Overview:** Enables real-time, sub-second exploratory testing and interactive debugging directly against a running Mendix application instance.
+- **Key Capabilities:**
+  - Direct execution and testing of Mendix microflows in memory.
+  - Live inspection and verification of runtime entity states and data attributes.
+  - Instant feedback loops during active development without requiring round-trips to the central MTA web portal.
+- **Prerequisites:** Requires the **MTA Runtime Plugin** installed and running inside your Mendix application, connected via the local MTA Plugin MCP endpoint (`/plugin/mcp`).
+
 ## Prerequisites
 
 > **Best Practice:** You should create a dedicated Agentic Test Workspace for each individual Mendix Application Under Test. Rather than attempting to reuse a single workspace across multiple Mendix applications, clone or instantiate this repository template separately for every Mendix app you intend to test.
@@ -19,8 +41,8 @@ Before starting, ensure you have:
 - **[Node.js](https://nodejs.org/) (v18+)** installed (required to run the setup script and local MCP proxies).
 - **[Git](https://git-scm.com/)** installed (used to sync upstream testing skills).
 - Access to MTA and with a service account token (with Call MCP primitive tools: Enabled)
-- A Mendix application under test (typically running on `http://localhost:8081`).
-- MTA Plugin must be installed and connected with MTA (LINK NAAR URL)
+- A local Mendix application under test
+- For exploratory testing **[MTA Plugin](https://documentation.menditect.com/Tools/mta-plugin)** must be installed and connected with MTA.
 
 ## Setup of workspace
 
@@ -47,7 +69,7 @@ The interactive script handles the full configuration in a few steps:
 - Skills & AI Scaffolding: Downloads the latest test skills (Menditect/agentic-test-skills) and generates configuration files for IDEs like Cursor, VS Code, and Claude.
 - Optional Code Indexing: Offers to build a local project catalog (.mxcli/catalog.db) for deep code search and dependency analysis.
 
-#### 3. Launch AI Workspace
+#### 3. Open the workspace in your AI IDE
 
 Open the selected workspace folder in your AI IDE (Cursor, Claude Code, GitHub Copilot, or Antigravity/Gemini). Your AI assistant is immediately ready to design, execute, and debug automated Mendix tests in MTA.
 
@@ -96,6 +118,16 @@ This repository, its helper scripts, proxies, and multi-agent configurations are
 - No Official Support: Menditect B.V. does not provide technical support, SLAs, bug fixes, or consulting services for this template or its scripts. If you encounter issues, you are encouraged to debug, modify, and contribute improvements back to the community repository.
 - As-Is Provision: In accordance with Sections 7 and 8 of the Apache License 2.0, the software is provided on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 - Limitation of Liability: In no event and under no legal theory shall Menditect B.V. or any contributor be liable for any direct, indirect, special, incidental, or consequential damages (including project file corruption, lost data, work stoppage, or system downtime).
+- Safe Working Practices: AI agents can execute command-line tools and modify files. Always ensure your Mendix projects are committed to Git so that any unwanted modifications can be reverted instantly.
+
+## License & Copyright
+
+Licensed under the Apache License, Version 2.0.
+
+Copyright 2026 Menditect B.V. (https://menditect.com)
+
+See LICENSE for the full license text.
+e corruption, lost data, work stoppage, or system downtime).
 - Safe Working Practices: AI agents can execute command-line tools and modify files. Always ensure your Mendix projects are committed to Git so that any unwanted modifications can be reverted instantly.
 
 ## License & Copyright
