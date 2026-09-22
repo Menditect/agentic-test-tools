@@ -344,35 +344,51 @@ async function buildProjectCatalog(mprPath, optionalBin, options = {}) {
     try { fs.mkdirSync(dotMxcliDir, { recursive: true }); } catch (e) {}
   }
 
-  let choice = options.choice !== undefined ? options.choice : 'Y';
+  let choice = options.choice !== undefined ? options.choice : 'fast';
   if (options.choice === undefined) {
-    console.log('\n--- Mendix Project Catalog Generation (.mxcli/catalog.db) ---');
-    console.log('[INFO] The project catalog powers MTA test design, caller/callee analysis, and full-text code search.');
-    console.log('[INFO] Documentation: https://www.mxcli.org/');
-    console.log('[WARNING] Performance advisory: Compiling complete MDL source definitions (REFRESH CATALOG SOURCE)');
-    console.log('          reads the contents of every document. On large projects (thousands of microflows/pages),');
-    console.log('          this process can take multiple minutes or even up to 1 hour.');
+    console.log('\n--- Mendix Project Search Index (.mxcli/catalog.db) ---');
+    console.log('mxcli can create a local SQLite database index of your Mendix app.');
+    console.log('This enables the AI assistant to instantly search your domain model, microflows,');
+    console.log('pages, and caller/callee dependencies offline without opening Studio Pro.');
+    console.log('Documentation: https://www.mxcli.org/\n');
+    console.log('Indexing options:');
+    console.log('  [1] Fast (Recommended - seconds):');
+    console.log('      Indexes all entities, attributes, microflow signatures, and page widgets.');
+    console.log('      Fastest setup; covers over 90% of test generation and analysis tasks.');
+    console.log('  [2] Full (Deep - 1 to 5+ minutes):');
+    console.log('      Deeply indexes every activity, microflow expression, and full document source.');
+    console.log('      (Can take longer on large projects with thousands of documents).');
+    console.log('  [3] Skip (Do not index now):');
+    console.log('      Skip index creation. You can generate it anytime later in the background via:');
+    console.log('      ./mxcli -c "REFRESH CATALOG FULL FORCE;"\n');
 
     if (options.askFn) {
-      const promptText = '\nBuild project catalog with full MDL source now? [Y/n/fast] (Y = full with source, fast = structure only, n = skip)';
-      const ans = await options.askFn(promptText, 'Y');
-      choice = ans.trim() || 'Y';
+      const rawCatalogChoice = await options.askFn('Select indexing option: [1] Fast (recommended), [2] Full, [3] Skip', '1');
+      const trimmed = (rawCatalogChoice || '1').trim().toLowerCase();
+      if (trimmed === '2' || trimmed === 'full' || trimmed === 'deep' || trimmed === 'y' || trimmed === 'yes') {
+        choice = 'full';
+      } else if (trimmed === '3' || trimmed === 'skip' || trimmed === 'n' || trimmed === 'no' || trimmed === 'none') {
+        choice = 'skip';
+      } else {
+        choice = 'fast';
+      }
     }
   }
 
-  const normalized = (choice || 'Y').toLowerCase();
-  if (normalized.startsWith('n')) {
-    console.log('[INFO] Catalog generation skipped.');
+  const normalized = (choice || 'fast').toLowerCase();
+  if (normalized === 'skip' || normalized === '3' || normalized.startsWith('n')) {
+    console.log('[INFO] Catalog indexing skipped.');
     console.log('[INFO] You can build it anytime by running:');
-    console.log('       ./mxcli -c "REFRESH CATALOG SOURCE FORCE;"');
+    console.log('       ./mxcli -c "REFRESH CATALOG FULL FORCE;" (fast mode) or');
+    console.log('       ./mxcli -c "REFRESH CATALOG SOURCE FORCE;" (full mode)');
     return false;
   }
 
-  let commandToRun = 'REFRESH CATALOG SOURCE FORCE;';
-  let modeName = 'full source definitions (deep extraction)';
-  if (normalized.startsWith('f')) {
-    commandToRun = 'REFRESH CATALOG FULL FORCE;';
-    modeName = 'structural metadata & activities (fast mode)';
+  let commandToRun = 'REFRESH CATALOG FULL FORCE;';
+  let modeName = 'structural metadata & activities (fast mode)';
+  if (normalized === 'full' || normalized === '2' || normalized === 'deep' || normalized.startsWith('y')) {
+    commandToRun = 'REFRESH CATALOG SOURCE FORCE;';
+    modeName = 'full source definitions (deep extraction)';
   }
 
   console.log(`\nCompiling catalog in ${modeName}...`);
@@ -868,15 +884,33 @@ async function run(options = {}) {
     initExternalProject = initAns.toLowerCase().startsWith('y');
   }
 
-  let catalogChoice = 'Y';
+  let catalogChoice = 'fast';
   if (mprPath && fs.existsSync(mprPath)) {
-    console.log('\nThe project catalog (.mxcli/catalog.db) powers MTA test design, caller/callee analysis, and full-text code search.');
-    console.log('(See documentation: https://www.mxcli.org/)');
-    console.log('[WARNING] Performance advisory: Compiling complete MDL source definitions (REFRESH CATALOG SOURCE)');
-    console.log('          reads the contents of every document. On large projects (thousands of microflows/pages),');
-    console.log('          this process can take multiple minutes or even up to 1 hour.');
-    const promptText = 'Build project catalog with full MDL source now? [Y/n/fast] (Y = full with source, fast = structure only, n = skip)';
-    catalogChoice = await ask(promptText, 'Y');
+    console.log('\n--- Mendix Project Search Index (.mxcli/catalog.db) ---');
+    console.log('mxcli can create a local SQLite database index of your Mendix app.');
+    console.log('This enables the AI assistant to instantly search your domain model, microflows,');
+    console.log('pages, and caller/callee dependencies offline without opening Studio Pro.');
+    console.log('Documentation: https://www.mxcli.org/\n');
+    console.log('Indexing options:');
+    console.log('  [1] Fast (Recommended - seconds):');
+    console.log('      Indexes all entities, attributes, microflow signatures, and page widgets.');
+    console.log('      Fastest setup; covers over 90% of test generation and analysis tasks.');
+    console.log('  [2] Full (Deep - 1 to 5+ minutes):');
+    console.log('      Deeply indexes every activity, microflow expression, and full document source.');
+    console.log('      (Can take longer on large projects with thousands of documents).');
+    console.log('  [3] Skip (Do not index now):');
+    console.log('      Skip index creation. You can generate it anytime later in the background via:');
+    console.log('      ./mxcli -c "REFRESH CATALOG FULL FORCE;"\n');
+
+    const rawCatalogChoice = await ask('Select indexing option: [1] Fast (recommended), [2] Full, [3] Skip', '1');
+    const trimmed = (rawCatalogChoice || '1').trim().toLowerCase();
+    if (trimmed === '2' || trimmed === 'full' || trimmed === 'deep' || trimmed === 'y' || trimmed === 'yes') {
+      catalogChoice = 'full';
+    } else if (trimmed === '3' || trimmed === 'skip' || trimmed === 'n' || trimmed === 'no' || trimmed === 'none') {
+      catalogChoice = 'skip';
+    } else {
+      catalogChoice = 'fast';
+    }
   }
 
   // 3. Resolve Workspace Directory & Skills Destination
