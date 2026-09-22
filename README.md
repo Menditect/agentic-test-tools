@@ -35,8 +35,8 @@ git  clone  https://github.com/Menditect/agentic-test-tools.git
 
 #### 2. Run the setup wizard
 
+> [!NOTE] Open command prompt in the directory where you cloned the repository and execute:
 ```bash
-# navigate into the workspace directory and execute:
 npm  run  setup
 ```
 
