@@ -69,9 +69,16 @@ git  clone  https://github.com/Menditect/agentic-test-tools.git
 
 #### 4. Run the setup wizard
 
-> [!NOTE] Open command prompt in the directory where you cloned the repository and execute:
+> [!NOTE]
+> If you are using **PowerShell** on Windows, script execution may be blocked by default security policies (`running scripts is disabled on this system`). You can temporarily allow script execution for your current terminal session by running:
+> ```powershell
+> Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+> ```
+> Alternatively, you can use the standard Windows Command Prompt (`cmd.exe`).
+
+In the directory where you cloned the repository (`agentic-test-tools`), run:
 ```bash
-npm  run  setup
+npm run setup
 ```
 
 The interactive script handles the full configuration in a few steps:
