@@ -1,4 +1,4 @@
-## Goal
+## Description
 
 The primary goal of this repository is to provide an automated, streamlined workflow for setting up a fully configured Agentic Test Workspace. Instead of manually assembling configuration files, tools, and best practices, this repository includes an interactive setup script that automatically prepares your entire workspace environment. When you run the setup script, it automatically performs the following actions:
 
@@ -9,10 +9,6 @@ The primary goal of this repository is to provide an automated, streamlined work
 - **Generates the Agentic Workspace**: Bundles all collected inputs, agentic skills, and MCP server configurations into a ready-to-use workspace tailored specifically to your Mendix application.
 
 Once the script finishes running, it outputs a complete, isolated Agentic Workspace. Opening this workspace folder in your AI assistant enables immediate end-to-end test case generation, test suite setup, and assertion configuration in MTA.
-
-## Description
-
-This repository serves as an automated setup template and toolkit for creating isolated **Agentic Test Workspaces** tailored to Mendix applications. It seamlessly integrates AI coding assistants (such as Antigravity/Gemini, Cursor, Claude Code, or GitHub Copilot) with **Menditect Test Automation (MTA)** and Mendix model inspection tools (`mxcli`), enabling autonomous end-to-end test case design, execution, exploratory testing, and debugging.
 
 ### Use cases
 
@@ -146,13 +142,4 @@ Licensed under the Apache License, Version 2.0.
 Copyright 2026 Menditect B.V. (https://menditect.com)
 
 See LICENSE for the full license text.
-e corruption, lost data, work stoppage, or system downtime).
-- Safe Working Practices: AI agents can execute command-line tools and modify files. Always ensure your Mendix projects are committed to Git so that any unwanted modifications can be reverted instantly.
 
-## License & Copyright
-
-Licensed under the Apache License, Version 2.0.
-
-Copyright 2026 Menditect B.V. (https://menditect.com)
-
-See LICENSE for the full license text.
