@@ -1171,17 +1171,17 @@ async function run(options = {}) {
   const mtaUrl = await ask('MTA URL', defaultMtaUrl);
   const mcpEndpoint = mtaUrl.replace(/\/$/, '') + '/primitivetools/mcp';
 
-  // 3. MTA Bearer Token
-  console.log('\nMTA Bearer Token:');
+  // 3. Identification token for a service account
+  console.log('\nIdentification token for a service account:');
   console.log('(Required only to author test cases/suites and store test results in the MTA Cloud Portal.');
   console.log(' In the MTA Portal as ServiceAccountManager, go to Service account overview, create a ServiceAccount,');
   console.log(' and ensure "Call MCP primitive tools = Enabled" is checked.');
   console.log(' If you are using free exploratory testing without an MTA license, press Enter to skip.)');
   const defaultMtaToken = process.env.MTA_MCP_AUTH_HEADER || existingConfig.mta_auth_header || '';
-  const rawMtaToken = await ask('MTA Bearer Token (optional / press Enter to skip)', defaultMtaToken);
+  const rawMtaToken = await ask('Identification token for a service account (optional / press Enter to skip)', defaultMtaToken);
   const mtaAuthHeader = rawMtaToken.trim() ? formatBearerToken(rawMtaToken) : '';
   if (!mtaAuthHeader) {
-    console.log('[INFO] MTA Bearer Token skipped. Cloud authoring tools will remain inactive.');
+    console.log('[INFO] Identification token for a service account skipped. Cloud authoring tools will remain inactive.');
   }
 
   // 4. App under test Plugin URL

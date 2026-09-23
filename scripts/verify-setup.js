@@ -272,9 +272,9 @@ function checkTokenPreflight(mode) {
   if (mode === 'mta') {
     const hasToken = process.env.MTA_MCP_AUTH_HEADER || (process.env.MTA_MCP_TOKEN ? `Bearer ${process.env.MTA_MCP_TOKEN}` : null) || (config.mta_auth_header && config.mta_auth_header.trim());
     if (!hasToken) {
-      console.log('[INFO] No MTA Bearer token configured in .env or MTA_MCP_AUTH_HEADER (optional for free exploratory testing).');
+      console.log('[INFO] No identification token for a service account configured in .env or MTA_MCP_AUTH_HEADER (optional for free exploratory testing).');
     } else {
-      console.log('[INFO] MTA Bearer token is configured.');
+      console.log('[INFO] Identification token for a service account is configured.');
     }
   } else if (mode === 'plugin') {
     const hasToken = process.env.PLUGIN_MCP_TOKEN || (config.plugin_mcp_token && config.plugin_mcp_token.trim());
@@ -500,7 +500,7 @@ function verifyMode(mode) {
     if (mode === 'mta') {
       const hasToken = process.env.MTA_MCP_AUTH_HEADER || (process.env.MTA_MCP_TOKEN ? `Bearer ${process.env.MTA_MCP_TOKEN}` : null) || (config.mta_auth_header && config.mta_auth_header.trim());
       if (!hasToken) {
-        console.log('  [NOTICE] MTA Cloud Bearer token is not configured (optional for free exploratory testing).');
+        console.log('  [NOTICE] Identification token for a service account is not configured (optional for free exploratory testing).');
         console.log('           Cloud MTA MCP authoring tools are inactive. Local exploratory testing is enabled via Plugin MCP.');
         resolve({ success: true, offline: true, message: 'No MTA token configured; exploratory mode' });
         return;
@@ -518,7 +518,7 @@ function verifyMode(mode) {
       console.error(`Timeout waiting for ${mode} MCP server (${timeoutMs / 1000}s elapsed).`);
       if (mode === 'mta') {
         console.error('  [TIP] Check internet connectivity to your MTA cloud instance and ensure');
-        console.error('        MTA_MCP_AUTH_HEADER in .env contains a valid Menditect Bearer token.');
+        console.error('        MTA_MCP_AUTH_HEADER in .env contains a valid identification token for a service account.');
       }
       proc.kill();
       resolve({ success: false, offline: false, message: `Timeout waiting for ${mode} MCP server` });

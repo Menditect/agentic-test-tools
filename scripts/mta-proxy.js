@@ -64,7 +64,7 @@ if (mode === 'mta') {
   TARGET_URL = config.mcp_endpoint || derivedMcp || process.env.MTA_MCP_ENDPOINT || 'https://mta-trial.mendixcloud.com/primitivetools/mcp';
   AUTH_HEADER = process.env.MTA_MCP_AUTH_HEADER || (process.env.MTA_MCP_TOKEN ? `Bearer ${process.env.MTA_MCP_TOKEN}` : null) || config.mta_auth_header || null;
   if (!AUTH_HEADER) {
-    console.error('Warning: No MTA Bearer token configured in MTA_MCP_AUTH_HEADER, .env, or mta_config.json. Requests to MTA MCP will fail authentication.');
+    console.error('Warning: No identification token for a service account configured in MTA_MCP_AUTH_HEADER, .env, or mta_config.json. Requests to MTA MCP will fail authentication.');
   }
 } else if (mode === 'plugin') {
   TARGET_URL = config.plugin_mcp_url || config.plugin_url || config.pluginUrl || process.env.PLUGIN_MCP_URL || 'http://localhost:8081/plugin/mcp';
@@ -263,7 +263,8 @@ async function makeRequest(payloadString, requestId, retryCount = 0) {
       if (requestId !== null) {
         let errorMsg = `HTTP ${res.statusCode} ${res.statusMessage || ''}: ${res.body.trim() || 'Internal Server Error'}`;
         if (res.statusCode === 401 || res.statusCode === 403) {
-          errorMsg = `HTTP ${res.statusCode} ${res.statusMessage || ''}: Authentication failed. Please verify your ${mode.toUpperCase()} Bearer token in mta_config.json or .env. ${res.body.trim()}`;
+          const tokenLabel = mode === 'mta' ? 'identification token for a service account' : `${mode.toUpperCase()} Bearer token`;
+          errorMsg = `HTTP ${res.statusCode} ${res.statusMessage || ''}: Authentication failed. Please verify your ${tokenLabel} in .env or mta_config.json. ${res.body.trim()}`;
         }
         const errResponse = JSON.stringify({
           jsonrpc: '2.0',
