@@ -4,7 +4,6 @@ const path = require('path');
 
 const proxyPath = path.join(__dirname, 'mta-proxy.js');
 const rootDir = path.join(__dirname, '..');
-const configPath = path.join(rootDir, 'mta_config.json');
 
 let scriptVersion = '';
 try {
@@ -34,20 +33,59 @@ function loadEnvFile(filePath) {
   } catch (e) {}
 }
 
-loadEnvFile(path.join(process.cwd(), '.env.local'));
-loadEnvFile(path.join(process.cwd(), '.env'));
-loadEnvFile(path.join(rootDir, '.env.local'));
-loadEnvFile(path.join(rootDir, '.env'));
+const candidateConfigPaths = [
+  path.join(process.cwd(), 'mta_config.json'),
+  path.join(rootDir, 'mta_config.json'),
+  path.join(rootDir, '..', 'mta_config.json')
+];
 
 let rawConfig = {};
-try {
-  if (fs.existsSync(configPath)) {
-    rawConfig = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+let activeConfigPath = null;
+for (const cp of candidateConfigPaths) {
+  if (fs.existsSync(cp)) {
+    try {
+      rawConfig = JSON.parse(fs.readFileSync(cp, 'utf8'));
+      activeConfigPath = cp;
+      break;
+    } catch (e) {}
   }
-} catch (e) {}
+}
 
 const { normalizeConfigAliases } = require('./setup');
-const config = normalizeConfigAliases ? normalizeConfigAliases(rawConfig) : rawConfig;
+let config = normalizeConfigAliases ? normalizeConfigAliases(rawConfig) : rawConfig;
+
+// If config points to a workspace_dir with its own mta_config.json, merge it
+if (config.workspace_dir && fs.existsSync(path.join(config.workspace_dir, 'mta_config.json'))) {
+  const wsConfigPath = path.join(config.workspace_dir, 'mta_config.json');
+  if (path.resolve(wsConfigPath) !== path.resolve(activeConfigPath || '')) {
+    try {
+      const wsCfg = JSON.parse(fs.readFileSync(wsConfigPath, 'utf8'));
+      const normalizedWs = normalizeConfigAliases ? normalizeConfigAliases(wsCfg) : wsCfg;
+      rawConfig = { ...rawConfig, ...wsCfg };
+      config = { ...config, ...normalizedWs };
+      if (!activeConfigPath) activeConfigPath = wsConfigPath;
+    } catch (e) {}
+  }
+}
+
+// Load env files in priority order (workspace_dir, cwd, rootDir, parent, mendix_project_dir)
+const candidateEnvDirs = [
+  config.workspace_dir,
+  process.cwd(),
+  rootDir,
+  path.join(rootDir, '..'),
+  config.mendix_project_dir
+].filter(Boolean);
+
+const seenDirs = new Set();
+for (const dir of candidateEnvDirs) {
+  const resolved = path.resolve(dir);
+  if (!seenDirs.has(resolved)) {
+    seenDirs.add(resolved);
+    loadEnvFile(path.join(resolved, '.env.local'));
+    loadEnvFile(path.join(resolved, '.env'));
+  }
+}
 
 function validateConfigAgainstSchema(cfg) {
   const schemaPath = path.join(__dirname, '..', 'mta_config.schema.json');
@@ -546,12 +584,16 @@ async function run() {
   console.log(`Skills Destination: ${skillsDir}\n`);
 
   console.log('Checking configuration schema compliance...');
-  const schemaResult = validateConfigAgainstSchema(rawConfig);
-  if (schemaResult.valid) {
-    console.log('[PASS] mta_config.json complies with mta_config.schema.json.');
+  if (!activeConfigPath) {
+    console.warn('[WARN] No mta_config.json found! Run "npm run setup" to initialize your workspace configuration.');
   } else {
-    console.warn('[WARN] mta_config.json has schema validation warnings:');
-    schemaResult.errors.forEach(err => console.warn(`  - ${err}`));
+    const schemaResult = validateConfigAgainstSchema(rawConfig);
+    if (schemaResult.valid) {
+      console.log(`[PASS] mta_config.json complies with mta_config.schema.json (${activeConfigPath}).`);
+    } else {
+      console.warn(`[WARN] mta_config.json (${activeConfigPath}) has schema validation warnings:`);
+      schemaResult.errors.forEach(err => console.warn(`  - ${err}`));
+    }
   }
   checkSchemaContractAlignment();
   console.log();

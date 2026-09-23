@@ -712,7 +712,35 @@ fi
   fs.writeFileSync(shPath, shContent, 'utf8');
   try { fs.chmodSync(shPath, 0o755); } catch (e) {}
 
-  console.log(`Deployed local ./mxcli runners into ${targetDir}`);
+  // Deploy verify runners
+  const verifyScriptInTools = path.join(toolsRootDir, 'scripts', 'verify-setup.js');
+  const isParent = path.resolve(targetDir) === path.resolve(toolsRootDir, '..');
+  const toolsRelName = path.basename(toolsRootDir);
+
+  const verifyBatScript = isParent
+    ? `"%SCRIPT_DIR%${toolsRelName}\\scripts\\verify-setup.js"`
+    : `"${verifyScriptInTools.replace(/\//g, '\\')}"`;
+
+  const verifyShScript = isParent
+    ? `"$SCRIPT_DIR/${toolsRelName}/scripts/verify-setup.js"`
+    : `"${verifyScriptInTools.replace(/\\/g, '/')}"`;
+
+  const verifyBatContent = `@echo off
+set SCRIPT_DIR=%~dp0
+node ${verifyBatScript} %*
+`;
+
+  const verifyShContent = `#!/usr/bin/env bash
+SCRIPT_DIR="$(cd "$(dirname "\${BASH_SOURCE[0]}")" && pwd)"
+node ${verifyShScript} "$@"
+`;
+
+  fs.writeFileSync(path.join(targetDir, 'verify.bat'), verifyBatContent, 'utf8');
+  const verifyShPath = path.join(targetDir, 'verify');
+  fs.writeFileSync(verifyShPath, verifyShContent, 'utf8');
+  try { fs.chmodSync(verifyShPath, 0o755); } catch (e) {}
+
+  console.log(`Deployed local ./mxcli and ./verify runners into ${targetDir}`);
 }
 
 function ensureExecutionPlanFolders(targetDir) {
@@ -1314,8 +1342,18 @@ MTA_APP_INSTANCE_DEFAULT="${defaultInstanceName}"
   console.log(` Default App Instance:    ${defaultInstanceName}`);
   console.log(` App Instances Total:     ${appInstances.length}`);
   console.log(` Execution plans:         ${plansDir}`);
-  console.log(' Your workspace is ready! Run "npm run verify" to check MCP connectivity.');
-  console.log(' (Run "npm run update" in the future to refresh skills and binaries).');
+  if (path.resolve(workspaceDir) !== path.resolve(toolsRootDir)) {
+    const toolsDirName = path.basename(toolsRootDir);
+    console.log(' Your workspace is ready!');
+    console.log(' To verify MCP connectivity, run:');
+    console.log('   ./verify');
+    console.log(`   (or: npm --prefix ${toolsDirName} run verify)`);
+    console.log(' In the future, to refresh skills and binaries, run:');
+    console.log(`   npm --prefix ${toolsDirName} run update`);
+  } else {
+    console.log(' Your workspace is ready! Run "npm run verify" to check MCP connectivity.');
+    console.log(' (Run "npm run update" in the future to refresh skills and binaries).');
+  }
   console.log('======================================================');
   if (rl) rl.close();
 }
