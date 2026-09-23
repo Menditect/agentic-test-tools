@@ -22,7 +22,7 @@ This repository serves as an automated setup template and toolkit for creating i
   - Automated creation and configuration of test suites, test cases, and test steps.
   - Deep model-driven test design by inspecting Mendix domain models, microflows, and decision logic (via `mxcli` or Studio Pro MCP).
   - Persistent Execution Plan management (`EP_*.md`) and test result analysis.
-- **Prerequisites:** Requires an active **MTA License** and a Service Account Bearer Token with *Primitive Tools* enabled on your MTA server.
+- **Prerequisites:** Requires an active **MTA License** and a identification token for a service account with *Primitive Tools* enabled on your MTA server.
 
 #### 2. In-Memory Exploratory Testing (Runtime Plugin)
 - **Overview:** Enables real-time, sub-second exploratory testing and interactive debugging directly against a running Mendix application instance.
@@ -40,7 +40,7 @@ Before starting, ensure you have:
 
 - **[Node.js](https://nodejs.org/) (v18+)** installed (required to run the setup script and local MCP proxies).
 - **[Git](https://git-scm.com/)** installed (used to sync upstream testing skills).
-- Access to MTA and with a service account token (with Call MCP primitive tools: Enabled)
+- Access to MTA and with a identification token for a service account (with Call MCP primitive tools: Enabled)
 - A local Mendix application under test
 - For exploratory testing **[MTA Plugin](https://documentation.menditect.com/Tools/mta-plugin)** must be installed and connected with MTA.
 

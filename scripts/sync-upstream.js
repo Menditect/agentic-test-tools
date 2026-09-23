@@ -18,19 +18,35 @@ function loadConfig() {
   const possiblePaths = [
     process.env.MTA_CONFIG_PATH,
     path.join(rootDir, 'mta_config.json'),
-    path.join(process.cwd(), 'mta_config.json')
+    path.join(process.cwd(), 'mta_config.json'),
+    path.join(rootDir, '..', 'mta_config.json')
   ].filter(Boolean);
 
+  let config = {};
   for (const p of possiblePaths) {
     if (fs.existsSync(p)) {
       try {
         const raw = JSON.parse(fs.readFileSync(p, 'utf8'));
         const { normalizeConfigAliases } = require('./setup');
-        return normalizeConfigAliases ? normalizeConfigAliases(raw) : raw;
+        config = normalizeConfigAliases ? normalizeConfigAliases(raw) : raw;
+        break;
       } catch (e) {}
     }
   }
-  return {};
+
+  if (config.workspace_dir && fs.existsSync(path.join(config.workspace_dir, 'mta_config.json'))) {
+    const wsPath = path.join(config.workspace_dir, 'mta_config.json');
+    if (path.resolve(wsPath) !== path.resolve(rootDir, 'mta_config.json')) {
+      try {
+        const wsRaw = JSON.parse(fs.readFileSync(wsPath, 'utf8'));
+        const { normalizeConfigAliases } = require('./setup');
+        const normalizedWs = normalizeConfigAliases ? normalizeConfigAliases(wsRaw) : wsRaw;
+        config = { ...config, ...normalizedWs };
+      } catch (e) {}
+    }
+  }
+
+  return config;
 }
 
 function saveConfig(config) {

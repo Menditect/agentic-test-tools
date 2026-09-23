@@ -784,13 +784,19 @@ function updateDirectiveFile(filePath, appName, mtaUrl, skillsStyle, appInstance
     const baseFile = path.join(toolsRootDir, path.basename(filePath));
     if (fs.existsSync(baseFile)) {
       content = fs.readFileSync(baseFile, 'utf8');
-      if (skillsRelPath !== 'skills/AGENTS.md') {
-        content = content.replace(/skills\/AGENTS\.md/g, skillsRelPath);
-        const skillsDirRel = path.dirname(skillsRelPath);
-        content = content.replace(/`skills\/`/g, `\`${skillsDirRel}/\``);
-      }
     }
   }
+
+  if (skillsRelPath === 'skills/AGENTS.md') {
+    content = content.replace(/[a-zA-Z0-9_\-\.]+\/skills\/AGENTS\.md/g, 'skills/AGENTS.md');
+    content = content.replace(/`[a-zA-Z0-9_\-\.]+\/skills\/`/g, '`skills/`');
+    content = content.replace(/in the `[a-zA-Z0-9_\-\.]+\/skills\/` directory/g, 'in the `skills/` directory');
+  } else {
+    content = content.replace(/skills\/AGENTS\.md/g, skillsRelPath);
+    const skillsDirRel = path.dirname(skillsRelPath);
+    content = content.replace(/`skills\/`/g, `\`${skillsDirRel}/\``);
+  }
+
   const setupBlock = getMenditectSetupBlock(appName, mtaUrl, skillsStyle, appInstances, defaultInstanceName, skillsRelPath);
 
   const headerRegex = /# Menditect Architecture Setup[\s\S]*?(?=(?:\r?\n#[^#]|$))/;
@@ -980,13 +986,13 @@ async function run(options = {}) {
   // 3. Resolve Workspace Directory & Skills Destination
   let workspaceType = 'clone_root';
   let workspaceDir = path.resolve(toolsRootDir, '..');
-  let skillsDir = path.join(toolsRootDir, 'skills');
+  let skillsDir = path.join(workspaceDir, 'skills');
   let skillsStyle = 'standard';
 
   if (workspaceChoice === '1') {
     workspaceType = 'clone_root';
     workspaceDir = path.resolve(toolsRootDir, '..');
-    skillsDir = path.join(toolsRootDir, 'skills');
+    skillsDir = path.join(workspaceDir, 'skills');
     skillsStyle = 'standard';
     console.log(`\nWorkspace: Parent Workspace Directory (${workspaceDir})`);
     console.log(`Tools Root: ${toolsRootDir}`);
@@ -1385,7 +1391,7 @@ function runDirectivesOnly() {
   const appInstances = config.app_instances || [];
   const defaultInstanceName = config.default_app_instance || '';
 
-  const skillsDir = config.skills_dir || path.join(toolsRootDir, 'skills');
+  const skillsDir = config.skills_dir || path.join(workspaceDir, 'skills');
   console.log(`[RESTORE] Restoring Menditect Architecture Setup directives in ${workspaceDir}...`);
   updateAgentDirectives(workspaceDir, appName, mtaUrl, skillsStyle, appInstances, defaultInstanceName, skillsDir);
   if (path.resolve(workspaceDir) !== path.resolve(toolsRootDir)) {

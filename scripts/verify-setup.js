@@ -177,7 +177,8 @@ function checkSchemaContractAlignment() {
 }
 
 function checkSkillsPresence() {
-  const skillsDir = config.skills_dir || path.join(rootDir, 'skills');
+  const wsDir = config.workspace_dir || rootDir;
+  const skillsDir = config.skills_dir || path.join(wsDir, 'skills');
   console.log('Checking MTA skills presence...');
 
   if (!fs.existsSync(skillsDir)) {
@@ -578,7 +579,7 @@ async function run() {
   console.log(`--- Menditect Workspace Verification${scriptVersion} ---\n`);
   const wsType = config.workspace_type || 'clone_root';
   const wsDir = config.workspace_dir || path.join(__dirname, '..');
-  const skillsDir = config.skills_dir || path.join(__dirname, '..', 'skills');
+  const skillsDir = config.skills_dir || path.join(wsDir, 'skills');
   console.log(`Workspace Type:     ${wsType}`);
   console.log(`Workspace Dir:      ${wsDir}`);
   console.log(`Skills Destination: ${skillsDir}\n`);
