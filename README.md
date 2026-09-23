@@ -49,18 +49,25 @@ Before starting, ensure you have:
 > [!WARNING]
 > Mxcli will install software in the directory of the Mendix project, please make sure to read the mxcli documentation before proceeding. (https://www.mxcli.org/)
 
-#### 1. Clone the repository
+### 1. Create target directory for workspace
+```bash
+mkdir C:\projects\your-workspace
+```
+
+
+#### 2. Clone the repository
 
 ```bash
 git  clone  https://github.com/Menditect/agentic-test-tools.git
 ```
 
-#### 2. Locate the root of your repository
+
+#### 3. Go to agentic-test-tools directory
 ```bash
- cd path\to\agentic-test-tools
+ cd C:\projects\your-workspace\agentic-test-tools
 ```
 
-#### 3. Run the setup wizard
+#### 4. Run the setup wizard
 
 > [!NOTE] Open command prompt in the directory where you cloned the repository and execute:
 ```bash
@@ -74,7 +81,7 @@ The interactive script handles the full configuration in a few steps:
 - Skills & AI Scaffolding: Downloads the latest test skills (Menditect/agentic-test-skills) and generates configuration files for IDEs like Cursor, VS Code, and Claude.
 - Optional Code Indexing: Offers to build a local project catalog (.mxcli/catalog.db) for deep code search and dependency analysis.
 
-#### 4. Open the workspace in your AI IDE
+#### 5. Open the workspace in your AI IDE
 
 Open the selected workspace folder in your AI IDE (Cursor, Claude Code, GitHub Copilot, or Antigravity/Gemini). Your AI assistant is immediately ready to design, execute, and debug automated Mendix tests in MTA.
 
