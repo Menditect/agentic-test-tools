@@ -55,7 +55,12 @@ Before starting, ensure you have:
 git  clone  https://github.com/Menditect/agentic-test-tools.git
 ```
 
-#### 2. Run the setup wizard
+#### 2. Locate the root of your repository
+```bash
+ cd path\to\agentic-test-tools
+```
+
+#### 3. Run the setup wizard
 
 > [!NOTE] Open command prompt in the directory where you cloned the repository and execute:
 ```bash
@@ -69,7 +74,7 @@ The interactive script handles the full configuration in a few steps:
 - Skills & AI Scaffolding: Downloads the latest test skills (Menditect/agentic-test-skills) and generates configuration files for IDEs like Cursor, VS Code, and Claude.
 - Optional Code Indexing: Offers to build a local project catalog (.mxcli/catalog.db) for deep code search and dependency analysis.
 
-#### 3. Open the workspace in your AI IDE
+#### 4. Open the workspace in your AI IDE
 
 Open the selected workspace folder in your AI IDE (Cursor, Claude Code, GitHub Copilot, or Antigravity/Gemini). Your AI assistant is immediately ready to design, execute, and debug automated Mendix tests in MTA.
 

@@ -1036,52 +1036,64 @@ async function run(options = {}) {
   // Fallback to manual prompt if no instances discovered or accepted
   if (!appInstances.length) {
     const existingInstances = existingConfig.app_instances || [];
-    const defaultCount = existingInstances.length ? String(existingInstances.length) : '1';
-    console.log('\nConfigure application instances (required for ExecuteTest, e.g. local, test, acceptance):');
-    const rawCount = await ask('How many MTA application instances do you have?', defaultCount);
-    const count = Math.max(1, parseInt(rawCount, 10) || 1);
+    console.log('\n--- MTA Application Instances (Automated Cloud Execution) ---');
+    console.log('MTA Application Instances connect automated test suites in the MTA Cloud to your running app.');
+    console.log('(Note: Only required if you have an MTA license and run automated tests.');
+    console.log(' Free exploratory testing uses the local App Under Test Plugin below and does not need MTA instances.)\n');
 
-    for (let i = 1; i <= count; i++) {
-      const existingInst = existingInstances[i - 1];
-      const defaultName = existingInst ? existingInst.name : (i === 1 ? 'local' : (i === 2 ? 'test' : `instance-${i}`));
-      const instName = await ask(`Instance #${i} name (e.g. local, test)`, defaultName);
+    const defaultHasInst = existingInstances.length ? 'y' : 'n';
+    const hasInstancesAns = await ask('Do you have an MTA Application Instance to configure? (y/n)', defaultHasInst);
 
-      let token = '';
-      const defaultToken = existingInst ? existingInst.token : (i === 1 ? (existingConfig.default_app_instance_token || '') : '');
-      while (!token) {
-        token = await ask(`Instance #${i} token (from MTA Portal > Application > Application Instances)`, defaultToken);
-        token = token.trim();
-        if (!token) {
-          if (rl.closed) {
-            token = '00000000-0000-0000-0000-000000000000';
-            break;
+    if (hasInstancesAns.toLowerCase().startsWith('y')) {
+      const defaultCount = existingInstances.length ? String(existingInstances.length) : '1';
+      const rawCount = await ask('How many MTA application instances do you have?', defaultCount);
+      const count = Math.max(1, parseInt(rawCount, 10) || 1);
+
+      for (let i = 1; i <= count; i++) {
+        const existingInst = existingInstances[i - 1];
+        const defaultName = existingInst ? existingInst.name : (i === 1 ? 'local' : (i === 2 ? 'test' : `instance-${i}`));
+        const instName = await ask(`Instance #${i} name (e.g. local, test)`, defaultName);
+
+        let token = '';
+        const defaultToken = existingInst ? existingInst.token : (i === 1 ? (existingConfig.default_app_instance_token || '') : '');
+        while (!token) {
+          token = await ask(`Instance #${i} token (from MTA Portal > Application > Application Instances)`, defaultToken);
+          token = token.trim();
+          if (!token) {
+            if (rl.closed) {
+              token = '00000000-0000-0000-0000-000000000000';
+              break;
+            }
+            console.log('[ERROR] Application instance token cannot be empty.');
           }
-          console.log('[ERROR] Application instance token cannot be empty.');
+        }
+
+        if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(token)) {
+          console.log('[NOTICE] Token does not match standard UUID format, but will be used as entered.');
+        }
+
+        appInstances.push({ name: instName, token });
+      }
+
+      let selIdx = 1;
+      if (appInstances.length > 1) {
+        const defaultSel = existingConfig.default_app_instance
+          ? String(appInstances.findIndex(x => x.name === existingConfig.default_app_instance) + 1 || 1)
+          : '1';
+        console.log(`\n*(Note: The selected instance must be running and connected to MTA when you execute tests)*`);
+        const choice = await ask(`Select default instance for ExecuteTest (1-${appInstances.length})`, defaultSel);
+        const parsed = parseInt(choice, 10);
+        if (!isNaN(parsed) && parsed >= 1 && parsed <= appInstances.length) {
+          selIdx = parsed;
         }
       }
-
-      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(token)) {
-        console.log('[NOTICE] Token does not match standard UUID format, but will be used as entered.');
-      }
-
-      appInstances.push({ name: instName, token });
+      defaultInstanceName = appInstances[selIdx - 1].name;
+      defaultInstanceToken = appInstances[selIdx - 1].token;
+      console.log(`Default instance: [${defaultInstanceName}]`);
+    } else {
+      console.log('[INFO] Skipped. Automated cloud test execution (ExecuteTest) is inactive.');
+      console.log('       Local exploratory testing remains fully available via the runtime plugin below.');
     }
-
-    let selIdx = 1;
-    if (appInstances.length > 1) {
-      const defaultSel = existingConfig.default_app_instance
-        ? String(appInstances.findIndex(x => x.name === existingConfig.default_app_instance) + 1 || 1)
-        : '1';
-      console.log(`\n*(Note: The selected instance must be running and connected to MTA when you execute tests)*`);
-      const choice = await ask(`Select default instance for ExecuteTest (1-${appInstances.length})`, defaultSel);
-      const parsed = parseInt(choice, 10);
-      if (!isNaN(parsed) && parsed >= 1 && parsed <= appInstances.length) {
-        selIdx = parsed;
-      }
-    }
-    defaultInstanceName = appInstances[selIdx - 1].name;
-    defaultInstanceToken = appInstances[selIdx - 1].token;
-    console.log(`Default instance: [${defaultInstanceName}]`);
   }
 
   console.log('\n--- MTA Connection Settings ---');
@@ -1097,14 +1109,22 @@ async function run(options = {}) {
   const mcpEndpoint = mtaUrl.replace(/\/$/, '') + '/primitivetools/mcp';
 
   // 3. MTA Bearer Token
-  console.log('\n(MTA Bearer Token: An authentication token allowing AI MCP tools to communicate securely with MTA.');
+  console.log('\nMTA Bearer Token:');
+  console.log('(Required only to author test cases/suites and store test results in the MTA Cloud Portal.');
   console.log(' In the MTA Portal as ServiceAccountManager, go to Service account overview, create a ServiceAccount,');
-  console.log(' and ensure "Call MCP primitive tools = Enabled" is checked.)');
+  console.log(' and ensure "Call MCP primitive tools = Enabled" is checked.');
+  console.log(' If you are using free exploratory testing without an MTA license, press Enter to skip.)');
   const defaultMtaToken = process.env.MTA_MCP_AUTH_HEADER || existingConfig.mta_auth_header || '';
-  const rawMtaToken = await ask('MTA Bearer Token (e.g. Bearer <token> or raw token)', defaultMtaToken);
-  const mtaAuthHeader = formatBearerToken(rawMtaToken);
-  
+  const rawMtaToken = await ask('MTA Bearer Token (optional / press Enter to skip)', defaultMtaToken);
+  const mtaAuthHeader = rawMtaToken.trim() ? formatBearerToken(rawMtaToken) : '';
+  if (!mtaAuthHeader) {
+    console.log('[INFO] MTA Bearer Token skipped. Cloud authoring tools will remain inactive.');
+  }
+
   // 4. App under test Plugin URL
+  console.log('\n--- App Under Test Plugin (Local Exploratory Testing) ---');
+  console.log('(Available for all users, including free tier.');
+  console.log(' Enables the AI assistant to inspect entities and execute microflows in your running Mendix app.)\n');
   const defaultPluginUrl = activeConfig?.pluginUrl
     || (discoveredMta?.globalPluginUrl)
     || (activeConfig?.pluginPort ? `http://localhost:${activeConfig.pluginPort}/plugin/mcp` : null)

@@ -233,7 +233,7 @@ function checkTokenPreflight(mode) {
   if (mode === 'mta') {
     const hasToken = process.env.MTA_MCP_AUTH_HEADER || (process.env.MTA_MCP_TOKEN ? `Bearer ${process.env.MTA_MCP_TOKEN}` : null) || (config.mta_auth_header && config.mta_auth_header.trim());
     if (!hasToken) {
-      console.warn('[WARN] No MTA Bearer token configured in .env or MTA_MCP_AUTH_HEADER. MTA MCP requires authentication.');
+      console.log('[INFO] No MTA Bearer token configured in .env or MTA_MCP_AUTH_HEADER (optional for free exploratory testing).');
     } else {
       console.log('[INFO] MTA Bearer token is configured.');
     }
@@ -400,7 +400,7 @@ function checkAppInstances() {
   const instances = config.app_instances || [];
   const defaultToken = config.default_app_instance_token || process.env.MTA_APP_INSTANCE_TOKEN;
   if (!instances.length && !defaultToken) {
-    console.warn('[WARN] No MTA App Instance Tokens configured in mta_config.json or .env. ExecuteTest will require manual token input.');
+    console.log('[INFO] No MTA App Instance Tokens configured (automated cloud ExecuteTest is inactive).');
     return;
   }
   const defaultName = config.default_app_instance || (instances[0] ? instances[0].name : 'default');
@@ -442,6 +442,17 @@ function verifyMode(mode) {
   return new Promise((resolve) => {
     console.log(`Verifying ${mode} MCP server...`);
     checkTokenPreflight(mode);
+
+    if (mode === 'mta') {
+      const hasToken = process.env.MTA_MCP_AUTH_HEADER || (process.env.MTA_MCP_TOKEN ? `Bearer ${process.env.MTA_MCP_TOKEN}` : null) || (config.mta_auth_header && config.mta_auth_header.trim());
+      if (!hasToken) {
+        console.log('  [NOTICE] MTA Cloud Bearer token is not configured (optional for free exploratory testing).');
+        console.log('           Cloud MTA MCP authoring tools are inactive. Local exploratory testing is enabled via Plugin MCP.');
+        resolve({ success: true, offline: true, message: 'No MTA token configured; exploratory mode' });
+        return;
+      }
+    }
+
     const proc = spawn('node', [proxyPath, mode], {
       stdio: ['pipe', 'pipe', 'inherit'],
       env: { ...process.env, MCP_VERIFY_MODE: 'true' }
