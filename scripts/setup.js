@@ -941,18 +941,8 @@ async function run(options = {}) {
   }
   const mcpSource = modelSource === '2' ? 'studiopro' : 'mxcli';
 
-  // 2c. mxcli Options & Integration
-  console.log('\n--- mxcli Options & Integration ---');
-  console.log('For comprehensive mxcli documentation, visit: https://www.mxcli.org/\n');
+  // 2c. mxcli Search Index Options
 
-  let initExternalProject = false;
-  const parentWorkspaceDir = path.resolve(toolsRootDir, '..');
-  if (workspaceChoice === '1' && projectDir && fs.existsSync(projectDir) && path.resolve(projectDir) !== parentWorkspaceDir && path.resolve(projectDir) !== path.resolve(toolsRootDir)) {
-    console.log('mxcli can initialize AI context and skills (.ai-context/skills, docs/brain) in your external Mendix project repository.');
-    console.log('(See documentation: https://www.mxcli.org/)');
-    const initAns = await ask('Also initialize external Mendix project repository with mxcli init? (y/n)', 'n');
-    initExternalProject = initAns.toLowerCase().startsWith('y');
-  }
 
   let catalogChoice = 'fast';
   if (mprPath && fs.existsSync(mprPath)) {
@@ -1316,9 +1306,6 @@ MTA_APP_INSTANCE_DEFAULT="${defaultInstanceName}"
   // 9. Initialize Mendix AI Scaffolding (mxcli init, .ai-context/skills, docs/brain, .mxcli)
   if (workspaceChoice === '1') {
     initializeMxcli(workspaceDir, mprPath, null, { isMendixProject: false });
-    if (initExternalProject && projectDir && fs.existsSync(projectDir) && path.resolve(projectDir) !== path.resolve(workspaceDir)) {
-      initializeMxcli(projectDir, mprPath, null, { isMendixProject: true });
-    }
   } else if (workspaceChoice === '2') {
     initializeMxcli(workspaceDir, mprPath, null, { isMendixProject: true });
   }
