@@ -836,14 +836,16 @@ async function run(options = {}) {
   console.log('Before choosing your workspace, review the options:\n');
 
   console.log('[1] Workspace/Agentic-test-tools (Recommended)');
-  console.log('    - Setup: You create a parent folder (e.g. "workspace") and clone agentic-test-tools into it (workspace/agentic-test-tools).');
-  console.log('    - Result: The parent directory (workspace) is configured as the active workspace where you open your AI editor.');
-  console.log('    - Pros: Test skills, directives, and execution plans stay organized while your Mendix app code remains clean.\n');
+  console.log('    - Active Workspace: The parent directory (workspace/)');
+  console.log('    - Workflow: Open your AI editor in the parent workspace folder.');
+  console.log('    - Advantage: Keeps your Mendix project Git clean; test plans, agent directives,');
+  console.log('      and local configs stay isolated in your workspace.\n');
 
   console.log('[2] Mendix (Direct Mendix Project Workspace)');
-  console.log('    - Setup: You open your AI editor directly in your Mendix project folder.');
-  console.log('    - Result: Directives, skills, and plans are tracked in your project Git and shared across your team.');
-  console.log('    - Cons: Adds agent configuration files and test artifacts directly into your Mendix project Git repository.\n');
+  console.log('    - Active Workspace: Your local Mendix project directory');
+  console.log('    - Workflow: Open your AI editor directly in your Mendix app folder.');
+  console.log('    - Advantage: Test skills and directives are stored directly inside your Mendix');
+  console.log('      project repository and shared with your team via Git.\n');
 
   let defaultWorkspaceChoice = '1';
   if (existingConfig.workspace_type === 'mendix_project') defaultWorkspaceChoice = '2';
