@@ -822,8 +822,10 @@ async function run(options = {}) {
   }
 
   // 2. Mendix Project Directory and .mpr inspection
-  let projectDir = existingConfig.mendix_project_dir || '';
-  projectDir = await ask('Local Mendix App to test (project folder containing .mpr)', projectDir || process.cwd());
+  let projectDir = await ask('Local Mendix App to test (project folder containing .mpr)');
+  if (!projectDir && existingConfig.mendix_project_dir) {
+    projectDir = existingConfig.mendix_project_dir;
+  }
 
   let mprPath = '';
   const foundMpr = findMpr(projectDir);
@@ -852,8 +854,7 @@ async function run(options = {}) {
   // 2b. Model Inspection Source Selection
   console.log('\n--- Model Inspection Source ---');
   console.log('Documentation: https://www.mxcli.org/');
-  console.log('Why choose if mxcli is already installed?');
-  console.log('Even though mxcli is bundled and ready to read your project files offline, you can choose how the AI inspects your Mendix model:\n');
+  console.log('Choose how the AI inspects your Mendix model:\n');
   console.log('  [1] mxcli (Recommended / Standalone):');
   console.log('      Reads your .mpr file directly from disk. Fast, works offline, and does NOT');
   console.log('      require Mendix Studio Pro to be open. Best for headless agents and CI/CD.');
