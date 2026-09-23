@@ -1247,10 +1247,8 @@ async function run(options = {}) {
     mendix_mpr_path: mprPath
   };
 
-  fs.writeFileSync(path.join(toolsRootDir, 'mta_config.json'), JSON.stringify(config, null, 2));
-  console.log('\nCreated / updated mta_config.json (secrets decoupled to .env)');
-
-  // Also write mta_config.json and copy schema to workspaceDir if different from toolsRootDir for local reference
+  // Cloned Repository Immutability Rule: If workspaceDir is separate from toolsRootDir,
+  // write mta_config.json exclusively to workspaceDir, keeping toolsRootDir git worktree clean.
   if (path.resolve(workspaceDir) !== path.resolve(toolsRootDir)) {
     try {
       fs.writeFileSync(path.join(workspaceDir, 'mta_config.json'), JSON.stringify(config, null, 2));
@@ -1259,13 +1257,14 @@ async function run(options = {}) {
         fs.copyFileSync(schemaSource, path.join(workspaceDir, 'mta_config.schema.json'));
       }
     } catch (e) {}
+    console.log(`\nCreated / updated mta_config.json in workspace (${workspaceDir}) (toolsRootDir kept clean)`);
+  } else {
+    fs.writeFileSync(path.join(toolsRootDir, 'mta_config.json'), JSON.stringify(config, null, 2));
+    console.log('\nCreated / updated mta_config.json (secrets decoupled to .env)');
   }
 
   // 7. Ensure .gitignore protects credentials and write .env in workspace
   ensureGitIgnoreEntries(workspaceDir, ['.env', '.env.local', '.mxcli/']);
-  if (path.resolve(workspaceDir) !== path.resolve(toolsRootDir)) {
-    ensureGitIgnoreEntries(toolsRootDir, ['.env', '.env.local', '.mxcli/']);
-  }
   if (projectDir && fs.existsSync(projectDir) && path.resolve(projectDir) !== path.resolve(workspaceDir)) {
     ensureGitIgnoreEntries(projectDir, ['.mxcli/']);
   }
@@ -1394,9 +1393,6 @@ function runDirectivesOnly() {
   const skillsDir = config.skills_dir || path.join(workspaceDir, 'skills');
   console.log(`[RESTORE] Restoring Menditect Architecture Setup directives in ${workspaceDir}...`);
   updateAgentDirectives(workspaceDir, appName, mtaUrl, skillsStyle, appInstances, defaultInstanceName, skillsDir);
-  if (path.resolve(workspaceDir) !== path.resolve(toolsRootDir)) {
-    updateAgentDirectives(toolsRootDir, appName, mtaUrl, skillsStyle, appInstances, defaultInstanceName, path.join(toolsRootDir, 'skills'));
-  }
   console.log(`[PASS] Agent directives successfully restored across AGENTS.md, CLAUDE.md, and GEMINI.md.`);
 }
 

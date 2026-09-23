@@ -25,6 +25,12 @@ All Menditect MTA skills (like test design, analysis, installation) are located 
 - **Template Release Version**: Governed exclusively by the user when publishing. Applies ONLY to `package.json`, `RELEASES.md`, `releases/`, and git tags.
 - **mta_config Contract Version**: SSOT is `agentic-test-skills` (`references/mta_config.schema.json`). NEVER bump or modify `mta_config` version when releasing `agentic-test-tools`. It must strictly match `agentic-test-skills`.
 
+## Cloned Repository Immutability Rule (Tools Isolation)
+- When running `npm run setup` (or updating/syncing), `agentic-test-tools` acts purely as an external tools engine.
+- NEVER write, modify, or generate files (such as `mta_config.json`, `.env`, modified agent directives, or workspace artifacts) inside the cloned `agentic-test-tools/` directory when configured for an external or parent workspace (`workspaceDir !== toolsRootDir`).
+- All workspace configuration, secrets, agent directives, skills, runners, and execution plans MUST be written exclusively to `workspaceDir` (e.g. parent workspace or Mendix project directory).
+- The `agentic-test-tools` git worktree must remain 100% clean so that upstream git pulls (`git pull origin main`) never encounter merge conflicts, local dirty state, or leaked environment secrets.
+
 ## Upstream Skills & Tools Update Protocol
 - When asked to update `skills` or `mxcli` (or check for updates):
   1. Inspect local vs remote versions across all skills (`AGENTS.md` orchestrator and individual `SKILL.md` domain skills) and `mxcli` (e.g. via `node scripts/sync-upstream.js --check` or `npm run update:check`).

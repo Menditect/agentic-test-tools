@@ -329,6 +329,21 @@ function checkSecurityHygiene() {
   } else {
     console.log('  [PASS] mta_config.json contains no hardcoded authentication tokens.');
   }
+
+  // 4. Cloned Repository Immutability Rule: Verify toolsRootDir is not polluted
+  if (config.workspace_dir && path.resolve(config.workspace_dir) !== path.resolve(rootDir)) {
+    const dirtyFiles = [];
+    if (fs.existsSync(path.join(rootDir, 'mta_config.json'))) dirtyFiles.push('mta_config.json');
+    if (fs.existsSync(path.join(rootDir, '.env'))) dirtyFiles.push('.env');
+    if (fs.existsSync(path.join(rootDir, '.env.local'))) dirtyFiles.push('.env.local');
+
+    if (dirtyFiles.length > 0) {
+      console.warn(`  [WARN] Cloned repository contains local workspace files (${dirtyFiles.join(', ')}).`);
+      console.warn(`         To ensure clean git pulls, workspace configuration should live exclusively in ${config.workspace_dir}.`);
+    } else {
+      console.log('  [PASS] Cloned agentic-test-tools repository is clean (tools isolation verified).');
+    }
+  }
 }
 
 function checkAgentDirectives() {

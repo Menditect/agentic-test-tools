@@ -51,13 +51,14 @@ function loadConfig() {
 
 function saveConfig(config) {
   try {
-    fs.writeFileSync(path.join(rootDir, 'mta_config.json'), JSON.stringify(config, null, 2), 'utf8');
     if (config.workspace_dir && path.resolve(config.workspace_dir) !== path.resolve(rootDir)) {
       fs.writeFileSync(path.join(config.workspace_dir, 'mta_config.json'), JSON.stringify(config, null, 2), 'utf8');
       const schemaSource = path.join(rootDir, 'mta_config.schema.json');
       if (fs.existsSync(schemaSource)) {
         try { fs.copyFileSync(schemaSource, path.join(config.workspace_dir, 'mta_config.schema.json')); } catch (e) {}
       }
+    } else {
+      fs.writeFileSync(path.join(rootDir, 'mta_config.json'), JSON.stringify(config, null, 2), 'utf8');
     }
   } catch (e) {}
 }
