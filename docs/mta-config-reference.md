@@ -59,7 +59,7 @@ This reference document defines the complete structure, properties, resolution r
 | Field | Type | Required | Description |
 | :--- | :--- | :---: | :--- |
 | `$schema` | string (URI) | No | URI of the JSON Schema defining this document. |
-| `workspace_type` | string | No | Mode where the agent is running: `"clone_root"` (isolated tools workspace), `"mendix_project"` (direct Mendix project workspace), or `"custom"`. |
+| `workspace_type` | string | No | Mode where the agent is running: `"clone_root"` (`[1] Workspace/Agentic-test-tools` parent workspace), `"mendix_project"` (`[2] Mendix` direct Mendix project workspace), or legacy `"custom"`. |
 | `workspace_dir` | string | No | Absolute path to the active workspace directory. |
 | `skills_dir` | string | No | Absolute path where MTA skills are deployed. |
 | `skills_style` | string | No | Installation style: `"standard"` (project-level `skills/`) or `"mendix_module"` (`skillssource/_modules/menditect_agentictestskills` for Mendix 11.12+). |

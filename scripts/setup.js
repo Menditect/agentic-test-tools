@@ -571,9 +571,14 @@ function mergeJsonFile(filePath, updater) {
 
 function generateIdeConfigs(workspaceDir, mcpSource, projectDir, mprPath, mtaUrl, appName, mtaAuthHeader, pluginToken, defaultInstanceToken) {
   const isToolsWorkspace = path.resolve(workspaceDir) === path.resolve(toolsRootDir);
+  const isParentWorkspace = path.resolve(workspaceDir) === path.resolve(toolsRootDir, '..');
+  const toolsDirName = path.basename(toolsRootDir);
+
   const proxyScriptPath = isToolsWorkspace
     ? '${workspaceFolder}/scripts/mta-proxy.js'
-    : path.join(toolsRootDir, 'scripts', 'mta-proxy.js').replace(/\\/g, '/');
+    : (isParentWorkspace
+      ? `\${workspaceFolder}/${toolsDirName}/scripts/mta-proxy.js`
+      : path.join(toolsRootDir, 'scripts', 'mta-proxy.js').replace(/\\/g, '/'));
 
   const newMcpServers = {
     "mta": {
@@ -655,12 +660,26 @@ function generateIdeConfigs(workspaceDir, mcpSource, projectDir, mprPath, mtaUrl
   console.log(`Generated and merged IDE configurations in ${workspaceDir}`);
 }
 
-function deployMxcliWrappers(targetDir, mprName) {
+function deployMxcliWrappers(targetDir, mprPathOrName) {
   if (path.resolve(targetDir) === path.resolve(toolsRootDir)) return;
 
   const binDirInTools = path.join(toolsRootDir, 'bin').replace(/\\/g, '/');
-  const mprArg = mprName ? ` -p "%SCRIPT_DIR%${mprName}"` : '';
-  const mprArgSh = mprName ? ` -p "$SCRIPT_DIR/${mprName}"` : '';
+  let mprArg = '';
+  let mprArgSh = '';
+
+  if (mprPathOrName) {
+    const isFullPath = mprPathOrName.includes('/') || mprPathOrName.includes('\\');
+    const isInsideTarget = isFullPath && path.resolve(targetDir) === path.resolve(path.dirname(mprPathOrName));
+    const mprName = path.basename(mprPathOrName);
+
+    if (!isFullPath || isInsideTarget) {
+      mprArg = ` -p "%SCRIPT_DIR%${mprName}"`;
+      mprArgSh = ` -p "$SCRIPT_DIR/${mprName}"`;
+    } else {
+      mprArg = ` -p "${mprPathOrName.replace(/\//g, '\\')}"`;
+      mprArgSh = ` -p "${mprPathOrName.replace(/\\/g, '/')}"`;
+    }
+  }
 
   const batContent = `@echo off
 set SCRIPT_DIR=%~dp0
@@ -706,7 +725,7 @@ function ensureExecutionPlanFolders(targetDir) {
   return { menditectOutputDir, plansDir };
 }
 
-function getMenditectSetupBlock(appName, mtaUrl, skillsStyle, appInstances = [], defaultInstanceName = '') {
+function getMenditectSetupBlock(appName, mtaUrl, skillsStyle, appInstances = [], defaultInstanceName = '', skillsRelPath = 'skills/AGENTS.md') {
   if (skillsStyle === 'mendix_module') {
     return [
       '# Menditect Architecture Setup',
@@ -723,17 +742,28 @@ function getMenditectSetupBlock(appName, mtaUrl, skillsStyle, appInstances = [],
 
   return [
     '# Menditect Architecture Setup',
-    '- **CRITICAL OPERATIONAL COMMAND:** Always execute tasks using the core rules defined in `skills/AGENTS.md`.',
+    `- **CRITICAL OPERATIONAL COMMAND:** Always execute tasks using the core rules defined in \`${skillsRelPath}\`.`,
     '- **ENVIRONMENT SSOT:** All environment configuration (Application name, MTA Base URL, Default App Instance, and ApplicationInstanceToken) must be dynamically loaded from `mta_config.json`.'
   ].join('\n');
 }
 
-function updateDirectiveFile(filePath, appName, mtaUrl, skillsStyle, appInstances, defaultInstanceName) {
+function updateDirectiveFile(filePath, appName, mtaUrl, skillsStyle, appInstances, defaultInstanceName, skillsRelPath = 'skills/AGENTS.md') {
   let content = '';
   if (fs.existsSync(filePath)) {
     content = fs.readFileSync(filePath, 'utf8');
+  } else {
+    // Seed from toolsRootDir template if available
+    const baseFile = path.join(toolsRootDir, path.basename(filePath));
+    if (fs.existsSync(baseFile)) {
+      content = fs.readFileSync(baseFile, 'utf8');
+      if (skillsRelPath !== 'skills/AGENTS.md') {
+        content = content.replace(/skills\/AGENTS\.md/g, skillsRelPath);
+        const skillsDirRel = path.dirname(skillsRelPath);
+        content = content.replace(/`skills\/`/g, `\`${skillsDirRel}/\``);
+      }
+    }
   }
-  const setupBlock = getMenditectSetupBlock(appName, mtaUrl, skillsStyle, appInstances, defaultInstanceName);
+  const setupBlock = getMenditectSetupBlock(appName, mtaUrl, skillsStyle, appInstances, defaultInstanceName, skillsRelPath);
 
   const headerRegex = /# Menditect Architecture Setup[\s\S]*?(?=(?:\r?\n#[^#]|$))/;
   if (headerRegex.test(content)) {
@@ -747,7 +777,7 @@ function updateDirectiveFile(filePath, appName, mtaUrl, skillsStyle, appInstance
   fs.writeFileSync(filePath, content, 'utf8');
 }
 
-function updateAgentDirectives(targetDir, appName, mtaUrl, skillsStyle, appInstances, defaultInstanceName) {
+function updateAgentDirectives(targetDir, appName, mtaUrl, skillsStyle, appInstances, defaultInstanceName, skillsDir) {
   const targetFiles = [
     path.join(targetDir, 'AGENTS.md'),
     path.join(targetDir, 'CLAUDE.md'),
@@ -755,8 +785,14 @@ function updateAgentDirectives(targetDir, appName, mtaUrl, skillsStyle, appInsta
     path.join(targetDir, '.github', 'copilot-instructions.md')
   ];
 
+  let skillsRelPath = 'skills/AGENTS.md';
+  if (skillsDir) {
+    const rel = path.relative(targetDir, skillsDir).replace(/\\/g, '/');
+    skillsRelPath = rel ? `${rel}/AGENTS.md` : 'skills/AGENTS.md';
+  }
+
   for (const file of targetFiles) {
-    updateDirectiveFile(file, appName, mtaUrl, skillsStyle, appInstances, defaultInstanceName);
+    updateDirectiveFile(file, appName, mtaUrl, skillsStyle, appInstances, defaultInstanceName, skillsRelPath);
   }
   console.log(`Configured Menditect Architecture Setup in ${targetDir}`);
 }
@@ -799,26 +835,22 @@ async function run(options = {}) {
   // 1. Detailed breakdown of files & Git impact before choosing workspace
   console.log('Before choosing your workspace, review the options:\n');
 
-  console.log('[1] Dedicated Tools Workspace (Recommended for test isolation)');
-  console.log('    - Pros: Test skills, directives, and execution plans stay isolated in this tools repository, keeping your Mendix Git history focused on app code.');
-  console.log('    - Cons: You open your AI editor in this tools folder rather than directly inside your Mendix project.');
-  console.log('    - Note: mxcli still generates a local .mxcli/ folder (catalog.db cache) in your Mendix project.\n');
+  console.log('[1] Workspace/Agentic-test-tools (Recommended)');
+  console.log('    - Setup: You create a parent folder (e.g. "workspace") and clone agentic-test-tools into it (workspace/agentic-test-tools).');
+  console.log('    - Result: The parent directory (workspace) is configured as the active workspace where you open your AI editor.');
+  console.log('    - Pros: Test skills, directives, and execution plans stay organized while your Mendix app code remains clean.\n');
 
-  console.log('[2] Direct Mendix Project Workspace (All-in-one in your app)');
-  console.log('    - Pros: You open your AI editor directly in your Mendix project folder. Directives, skills, and plans are tracked in your project Git and shared across your team.');
+  console.log('[2] Mendix (Direct Mendix Project Workspace)');
+  console.log('    - Setup: You open your AI editor directly in your Mendix project folder.');
+  console.log('    - Result: Directives, skills, and plans are tracked in your project Git and shared across your team.');
   console.log('    - Cons: Adds agent configuration files and test artifacts directly into your Mendix project Git repository.\n');
-
-  console.log('[3] Other Custom Directory');
-  console.log('    - Pros: Complete flexibility to specify an external or shared location for configs and test outputs.');
-  console.log('    - Cons: Requires manual path configuration and maintenance outside standard workflows.\n');
 
   let defaultWorkspaceChoice = '1';
   if (existingConfig.workspace_type === 'mendix_project') defaultWorkspaceChoice = '2';
-  if (existingConfig.workspace_type === 'custom') defaultWorkspaceChoice = '3';
 
   let workspaceChoice = '';
-  while (workspaceChoice !== '1' && workspaceChoice !== '2' && workspaceChoice !== '3') {
-    workspaceChoice = await ask('Select Workspace Option (1/2/3)', defaultWorkspaceChoice);
+  while (workspaceChoice !== '1' && workspaceChoice !== '2') {
+    workspaceChoice = await ask('Select Workspace Option (1/2)', defaultWorkspaceChoice);
   }
 
   // 2. Mendix Project Directory and .mpr inspection
@@ -878,7 +910,8 @@ async function run(options = {}) {
   console.log('For comprehensive mxcli documentation, visit: https://www.mxcli.org/\n');
 
   let initExternalProject = false;
-  if (workspaceChoice === '1' && projectDir && fs.existsSync(projectDir) && path.resolve(projectDir) !== path.resolve(toolsRootDir)) {
+  const parentWorkspaceDir = path.resolve(toolsRootDir, '..');
+  if (workspaceChoice === '1' && projectDir && fs.existsSync(projectDir) && path.resolve(projectDir) !== parentWorkspaceDir && path.resolve(projectDir) !== path.resolve(toolsRootDir)) {
     console.log('mxcli can initialize AI context and skills (.ai-context/skills, docs/brain) in your external Mendix project repository.');
     console.log('(See documentation: https://www.mxcli.org/)');
     const initAns = await ask('Also initialize external Mendix project repository with mxcli init? (y/n)', 'n');
@@ -916,16 +949,17 @@ async function run(options = {}) {
 
   // 3. Resolve Workspace Directory & Skills Destination
   let workspaceType = 'clone_root';
-  let workspaceDir = toolsRootDir;
+  let workspaceDir = path.resolve(toolsRootDir, '..');
   let skillsDir = path.join(toolsRootDir, 'skills');
   let skillsStyle = 'standard';
 
   if (workspaceChoice === '1') {
     workspaceType = 'clone_root';
-    workspaceDir = toolsRootDir;
+    workspaceDir = path.resolve(toolsRootDir, '..');
     skillsDir = path.join(toolsRootDir, 'skills');
     skillsStyle = 'standard';
-    console.log(`\nWorkspace: Tools Clone Root (${workspaceDir})`);
+    console.log(`\nWorkspace: Parent Workspace Directory (${workspaceDir})`);
+    console.log(`Tools Root: ${toolsRootDir}`);
     console.log(`Skills destination: ${skillsDir}`);
   } else if (workspaceChoice === '2') {
     workspaceType = 'mendix_project';
@@ -953,13 +987,6 @@ async function run(options = {}) {
         console.log(`then re-run setup to automatically relocate skills into the module.)`);
       }
     }
-  } else if (workspaceChoice === '3') {
-    workspaceType = 'custom';
-    workspaceDir = await ask('Custom Workspace Directory', existingConfig.workspace_dir || toolsRootDir);
-    skillsDir = path.join(workspaceDir, 'skills');
-    skillsStyle = 'standard';
-    console.log(`\nWorkspace: Custom Directory (${workspaceDir})`);
-    console.log(`Skills destination: ${skillsDir}`);
   }
 
   // 4. MTA Application Instances & Connection Settings
@@ -1253,22 +1280,19 @@ MTA_APP_INSTANCE_DEFAULT="${defaultInstanceName}"
 
   // 9. Initialize Mendix AI Scaffolding (mxcli init, .ai-context/skills, docs/brain, .mxcli)
   if (workspaceChoice === '1') {
-    initializeMxcli(toolsRootDir, mprPath, null, { isMendixProject: false });
-    if (initExternalProject && projectDir && fs.existsSync(projectDir) && path.resolve(projectDir) !== path.resolve(toolsRootDir)) {
+    initializeMxcli(workspaceDir, mprPath, null, { isMendixProject: false });
+    if (initExternalProject && projectDir && fs.existsSync(projectDir) && path.resolve(projectDir) !== path.resolve(workspaceDir)) {
       initializeMxcli(projectDir, mprPath, null, { isMendixProject: true });
     }
   } else if (workspaceChoice === '2') {
     initializeMxcli(workspaceDir, mprPath, null, { isMendixProject: true });
-  } else {
-    initializeMxcli(workspaceDir, mprPath, null, { isMendixProject: false });
   }
 
   // 10. Generate & Merge IDE Configs
   generateIdeConfigs(workspaceDir, mcpSource, projectDir, mprPath, mtaUrl, appName, mtaAuthHeader, pluginToken, defaultInstanceToken);
 
   // 11. Deploy local mxcli runners into workspace
-  const mprFileName = mprPath ? path.basename(mprPath) : '';
-  deployMxcliWrappers(workspaceDir, mprFileName);
+  deployMxcliWrappers(workspaceDir, mprPath);
 
   // 12. Build Mendix Project Catalog (catalog.db) for MTA test automation & code search
   if (mprPath && fs.existsSync(mprPath)) {
@@ -1276,7 +1300,7 @@ MTA_APP_INSTANCE_DEFAULT="${defaultInstanceName}"
   }
 
   // 13. Update Agent Directives in workspaceDir
-  updateAgentDirectives(workspaceDir, appName, mtaUrl, skillsStyle, appInstances, defaultInstanceName);
+  updateAgentDirectives(workspaceDir, appName, mtaUrl, skillsStyle, appInstances, defaultInstanceName, skillsDir);
 
   console.log('\n======================================================');
   console.log(' Setup completed successfully!');
@@ -1321,10 +1345,11 @@ function runDirectivesOnly() {
   const appInstances = config.app_instances || [];
   const defaultInstanceName = config.default_app_instance || '';
 
+  const skillsDir = config.skills_dir || path.join(toolsRootDir, 'skills');
   console.log(`[RESTORE] Restoring Menditect Architecture Setup directives in ${workspaceDir}...`);
-  updateAgentDirectives(workspaceDir, appName, mtaUrl, skillsStyle, appInstances, defaultInstanceName);
+  updateAgentDirectives(workspaceDir, appName, mtaUrl, skillsStyle, appInstances, defaultInstanceName, skillsDir);
   if (path.resolve(workspaceDir) !== path.resolve(toolsRootDir)) {
-    updateAgentDirectives(toolsRootDir, appName, mtaUrl, skillsStyle, appInstances, defaultInstanceName);
+    updateAgentDirectives(toolsRootDir, appName, mtaUrl, skillsStyle, appInstances, defaultInstanceName, path.join(toolsRootDir, 'skills'));
   }
   console.log(`[PASS] Agent directives successfully restored across AGENTS.md, CLAUDE.md, and GEMINI.md.`);
 }
