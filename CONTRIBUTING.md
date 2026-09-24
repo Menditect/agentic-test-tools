@@ -10,6 +10,12 @@ To ensure consistency, security, and stability for all customers:
 - Direct write access to repository branches is restricted to authorized Menditect B.V. employees and maintainers.
 - All code, scripts, and documentation changes are subject to review by Menditect maintainers.
 
+## Branching Model & Release Workflow
+
+- **`development`**: The default active development branch. All feature development, enhancements, and bug fixes occur here.
+- **`main`**: The official release branch. Commits are merged to `main` only when publishing a release.
+- **Release Publications**: Merging to `main` and creating a release tag automatically triggers official GitHub Releases so subscribers receive notifications. Always return to `development` after release.
+
 ## Reporting Issues & Feedback
 
 If you encounter an issue or have a feature suggestion:

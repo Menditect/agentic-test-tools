@@ -10,6 +10,7 @@
     "update:skills": "node scripts/sync-skills.js",
     "update:mxcli": "node scripts/sync-mxcli.js",
     "verify": "node scripts/verify-setup.js",
-    "release": "node scripts/create-release.js"
+    "release": "node scripts/create-release.js",
+    "release:publish": "pwsh scripts/publish-github-release.ps1"
   }
 }

@@ -1,0 +1,91 @@
+name: Publish Official GitHub Release
+
+concurrency:
+  group: publish-release
+  cancel-in-progress: false
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'package.json'
+      - 'releases/**'
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g. 1.7.0 or v1.7.0). Leave empty to use package.json version.'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+
+jobs:
+  publish-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Resolve Release Version
+        id: release_version
+        shell: bash
+        run: |
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            raw_version="${{ github.event.inputs.version }}"
+          elif [[ "${{ github.ref_type }}" == "tag" ]]; then
+            raw_version="${{ github.ref_name }}"
+          else
+            raw_version=$(node -p "require('./package.json').version")
+          fi
+          
+          # Normalize version (remove leading 'v' for standardizing)
+          clean_version="${raw_version#v}"
+          tag="v${clean_version}"
+          echo "version=${clean_version}" >> $GITHUB_OUTPUT
+          echo "tag=${tag}" >> $GITHUB_OUTPUT
+          echo "Resolved release version: ${clean_version} (${tag})"
+
+      - name: Ensure Git Tag Exists
+        shell: bash
+        run: |
+          tag="${{ steps.release_version.outputs.tag }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          git fetch --tags --force
+          if ! git rev-parse "${tag}" >/dev/null 2>&1; then
+            echo "Creating Git tag ${tag} at HEAD..."
+            git tag -a "${tag}" -m "Release ${tag}"
+            git push origin "${tag}"
+          else
+            echo "Git tag ${tag} already exists."
+          fi
+
+      - name: Publish Official GitHub Release
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $tag = "${{ steps.release_version.outputs.tag }}"
+          $notesFile = "releases/$tag.md"
+
+          Write-Host "Publishing GitHub Release for $tag..." -ForegroundColor Cyan
+
+          $releaseArgs = @{
+            Version   = $tag
+            Repo      = "Menditect/agentic-test-tools"
+            Token     = $env:GITHUB_TOKEN
+          }
+
+          if (Test-Path $notesFile) {
+            $releaseArgs["NotesFile"] = $notesFile
+          }
+
+          & ./scripts/publish-github-release.ps1 @releaseArgs

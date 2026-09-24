@@ -32,6 +32,16 @@ When working with Mendix, remember:
   2. Present the detailed comparison table to the user showing which specific skills have updates and which are already up-to-date.
   3. Prompt the user for explicit confirmation before applying any updates.
 
+## Git Workflow & Branching Strategy
+- **`development` Branch (Default Working Branch)**: All active development, feature additions, bug fixes, and day-to-day commits MUST occur on the `development` branch.
+- **`main` Branch (Release-Only Branch)**: The `main` branch is strictly reserved for official releases. Never commit directly to `main`.
+- **Release Publication Protocol**:
+  1. Prepare the release on `development` (`npm run release`).
+  2. Commit and push changes to `origin/development`.
+  3. Merge `development` into `main` and push to `origin/main` (`git checkout main && git pull origin main && git merge development --no-edit && git push origin main`).
+  4. GitHub Actions automatically creates the git tag and publishes the official GitHub Release with release notes from `releases/v<version>.md`.
+  5. **CRITICAL POST-RELEASE RULE**: ALWAYS immediately switch back to `development` after publishing a release (`git checkout development`). Never remain on or continue working from `main`.
+
 # Menditect Architecture Setup
 - **CRITICAL OPERATIONAL COMMAND:** Always execute tasks using the core rules defined in `skills/AGENTS.md`.
 - **ENVIRONMENT SSOT:** All environment configuration (Application name, MTA Base URL, Default App Instance, and ApplicationInstanceToken) must be dynamically loaded from `mta_config.json`.
