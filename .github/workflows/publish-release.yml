@@ -69,23 +69,28 @@ jobs:
           fi
 
       - name: Publish Official GitHub Release
-        shell: pwsh
+        shell: bash
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          $tag = "${{ steps.release_version.outputs.tag }}"
-          $notesFile = "releases/$tag.md"
+          tag="${{ steps.release_version.outputs.tag }}"
+          notes_file="releases/${tag}.md"
 
-          Write-Host "Publishing GitHub Release for $tag..." -ForegroundColor Cyan
+          echo "Publishing GitHub Release for ${tag}..."
 
-          $releaseArgs = @{
-            Version   = $tag
-            Repo      = "Menditect/agentic-test-tools"
-            Token     = $env:GITHUB_TOKEN
-          }
-
-          if (Test-Path $notesFile) {
-            $releaseArgs["NotesFile"] = $notesFile
-          }
-
-          & ./scripts/publish-github-release.ps1 @releaseArgs
+          if [ -f "${notes_file}" ]; then
+            if gh release view "${tag}" >/dev/null 2>&1; then
+              echo "Release ${tag} already exists. Updating release notes..."
+              gh release edit "${tag}" --title "${tag}" --notes-file "${notes_file}"
+            else
+              echo "Creating release ${tag}..."
+              gh release create "${tag}" --title "${tag}" --notes-file "${notes_file}"
+            fi
+          else
+            if gh release view "${tag}" >/dev/null 2>&1; then
+              echo "Release ${tag} already exists."
+            else
+              echo "Creating release ${tag} with generated notes..."
+              gh release create "${tag}" --title "${tag}" --generate-notes
+            fi
+          fi
