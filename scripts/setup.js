@@ -866,20 +866,27 @@ async function run(options = {}) {
     }
   } catch (e) {}
 
+  console.log('TIP: Values shown in brackets [value] are pre-detected from your environment');
+  console.log('     or existing configuration. Press [Enter] to accept the detected/default value,');
+  console.log('     or type a new value and press [Enter].\n');
+
   // 1. Detailed breakdown of files & Git impact before choosing workspace
-  console.log('Before choosing your workspace, review the options:\n');
+  console.log('Choose how you want to structure your Agentic Testing Workspace:\n');
 
-  console.log('[1] Workspace/Agentic-test-tools (Recommended)');
-  console.log('    - Active Workspace: The parent directory (workspace/)');
-  console.log('    - Workflow: Open your AI editor in the parent workspace folder.');
-  console.log('    - Advantage: Keeps your Mendix project Git clean; test plans, agent directives,');
-  console.log('      and local configs stay isolated in your workspace.\n');
+  console.log('[1] Dedicated Tools Workspace (Recommended)');
+  console.log('    ★ ADVANTAGE: Keeps your Mendix project Git 100% clean and untouched.');
+  console.log('    - Active Workspace: Parent directory (workspace/)');
+  console.log('    - How It Works: Test execution plans, agent directives, and local tooling configs');
+  console.log('      stay isolated in your workspace without modifying your Mendix repository.');
+  console.log('    - Best For: Individual developers, multi-app setups, or testing without polluting');
+  console.log('      Mendix project git history.\n');
 
-  console.log('[2] Mendix (Direct Mendix Project Workspace)');
+  console.log('[2] Direct Mendix Project Workspace');
+  console.log('    ★ ADVANTAGE: Team collaboration — test skills and agent configs are committed');
+  console.log('      directly into your Mendix repository and shared with your team via Git.');
   console.log('    - Active Workspace: Your local Mendix project directory');
-  console.log('    - Workflow: Open your AI editor directly in your Mendix app folder.');
-  console.log('    - Advantage: Test skills and directives are stored directly inside your Mendix');
-  console.log('      project repository and shared with your team via Git.\n');
+  console.log('    - How It Works: Agent directives and test skills reside directly inside the Mendix app.');
+  console.log('    - Best For: Teams collaborating on automated testing within the same Mendix repository.\n');
 
   let defaultWorkspaceChoice = '1';
   if (existingConfig.workspace_type === 'mendix_project') defaultWorkspaceChoice = '2';
@@ -1331,22 +1338,52 @@ MTA_APP_INSTANCE_DEFAULT="${defaultInstanceName}"
   if (!skipSkills) {
     console.log(` Skills status:           ${skillsSyncSuccess ? 'Synchronized from agentic-test-skills' : 'Pending (run npm run update:skills)'}`);
   }
-  console.log(` Default App Instance:    ${defaultInstanceName}`);
+  console.log(` Default App Instance:    ${defaultInstanceName || '(none)'}`);
   console.log(` App Instances Total:     ${appInstances.length}`);
   console.log(` Execution plans:         ${plansDir}`);
-  if (path.resolve(workspaceDir) !== path.resolve(toolsRootDir)) {
-    const toolsDirName = path.basename(toolsRootDir);
-    console.log(' Your workspace is ready!');
-    console.log(' To verify MCP connectivity, run:');
-    console.log('   ./verify');
-    console.log(`   (or: npm --prefix ${toolsDirName} run verify)`);
-    console.log(' In the future, to refresh skills and binaries, run:');
-    console.log(`   npm --prefix ${toolsDirName} run update`);
-  } else {
-    console.log(' Your workspace is ready! Run "npm run verify" to check MCP connectivity.');
-    console.log(' (Run "npm run update" in the future to refresh skills and binaries).');
+  console.log('======================================================\n');
+
+  // Verify Prompt with AUT Warning
+  console.log('--- Workspace Verification ---');
+  console.log('[WARNING] Make sure your app under test is running in Studio Pro when verifying the MCP connection!\n');
+  const doVerify = await ask('Would you like to verify MCP connectivity now? (npm run verify) (y/n)', 'y');
+  
+  if (doVerify.toLowerCase().startsWith('y')) {
+    console.log('\nRunning verification...\n');
+    try {
+      const verifyScript = path.join(__dirname, 'verify-setup.js');
+      execSync(`node "${verifyScript}"`, { stdio: 'inherit' });
+    } catch (e) {
+      console.warn('\n[NOTICE] Verification completed with warnings or errors. You can rerun anytime via "npm run verify".');
+    }
   }
-  console.log('======================================================');
+
+  // Display mta_config.json & Next Steps
+  const activeCfgPath = path.join(workspaceDir, 'mta_config.json');
+  console.log('\n================================================================================');
+  console.log(` Configuration File: ${activeCfgPath}`);
+  console.log('--------------------------------------------------------------------------------');
+  try {
+    if (fs.existsSync(activeCfgPath)) {
+      const displayedCfg = JSON.parse(fs.readFileSync(activeCfgPath, 'utf8'));
+      console.log(JSON.stringify(displayedCfg, null, 2));
+    }
+  } catch (e) {}
+  console.log('--------------------------------------------------------------------------------');
+  console.log(' You can inspect or manually edit "mta_config.json" at any time.');
+  console.log(' To reconfigure or update settings in the future, simply re-run "npm run setup".');
+  console.log('================================================================================\n');
+
+  console.log('Next Steps: Open the workspace in your AI Agent / Editor:');
+  console.log(`  - Cursor:               Open "${workspaceDir}" (MCP servers connect automatically)`);
+  console.log(`  - VS Code / Copilot:    Open "${workspaceDir}" (tools load from .vscode/mcp.json)`);
+  console.log(`  - Claude Code:          Run "claude" in "${workspaceDir}" (reads CLAUDE.md & .claude/settings.json)`);
+  console.log(`  - Antigravity / Gemini: Open "${workspaceDir}" (reads GEMINI.md & AGENTS.md)`);
+  console.log('\nTo verify MCP connectivity anytime:');
+  console.log('  npm run verify');
+  console.log('  (Make sure your app under test is running when verifying the MCP connection).\n');
+  console.log('To update skills and mxcli binaries in the future:');
+  console.log('  npm run update\n');
   if (rl) rl.close();
 }
 

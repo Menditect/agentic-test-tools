@@ -182,8 +182,7 @@ No breaking changes. Run \`npm run update:skills\` and \`npm run update:mxcli\` 
   console.log('  3. Push development: git push origin development');
   console.log('  4. Merge to main and push (triggers automated GitHub Release):');
   console.log('     git checkout main && git pull origin main && git merge development --no-edit && git push origin main && git checkout development');
-  console.log('  5. (Optional) Publish manually: pwsh ./scripts/publish-github-release.ps1 -Version ' + version);
-  console.log('  6. ALWAYS ensure you are back on development: git checkout development');
+  console.log('  5. ALWAYS ensure you are back on development: git checkout development');
 }
 
 run();

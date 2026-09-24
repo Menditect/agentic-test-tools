@@ -1,6 +1,6 @@
 {
   "name": "agentic-test-tools",
-  "version": "1.7.0",
+  "version": "1.7.1",
   "description": "Menditect Agent Workspace Template",
   "scripts": {
     "setup": "node scripts/setup.js",
@@ -10,7 +10,6 @@
     "update:skills": "node scripts/sync-skills.js",
     "update:mxcli": "node scripts/sync-mxcli.js",
     "verify": "node scripts/verify-setup.js",
-    "release": "node scripts/create-release.js",
-    "release:publish": "pwsh scripts/publish-github-release.ps1"
+    "release": "node scripts/create-release.js"
   }
 }

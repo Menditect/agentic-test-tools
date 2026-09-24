@@ -495,6 +495,9 @@ function checkPlaywrightTraceSettings() {
 function verifyMode(mode) {
   return new Promise((resolve) => {
     console.log(`Verifying ${mode} MCP server...`);
+    if (mode === 'plugin') {
+      console.log('  [INFO] Note: Make sure your app under test is running in Studio Pro to verify the Plugin MCP connection.');
+    }
     checkTokenPreflight(mode);
 
     if (mode === 'mta') {
