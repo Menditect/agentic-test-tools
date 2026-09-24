@@ -245,8 +245,17 @@ async function makeRequest(payloadString, requestId, retryCount = 0) {
     cachedInitParams = parsedReq.params;
   }
 
+  // If receiving a downstream request without an active session (e.g. tools/list during verify), initialize first
+  if (mode === 'mta' && parsedReq && parsedReq.method !== 'initialize' && !sessionId && retryCount === 0) {
+    await ensureUpstreamInitialized();
+  }
+
   try {
     const res = await sendHttp(payloadString);
+
+    if (res.headers && res.headers['mcp-session-id']) {
+      sessionId = res.headers['mcp-session-id'];
+    }
 
     // Detect stale or broken session and auto-heal
     if (res.statusCode >= 400 && isSessionError(res.statusCode, res.body) && retryCount < 2) {
