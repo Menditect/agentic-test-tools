@@ -16,15 +16,15 @@ When working with Mendix, remember:
 ## Repository Architecture & Upstream SSOT
 - **Skills Build Repository (`mta-ai-assistant`)**: The internal engineering repository meant for building MTA skills (work occurs on `development`). It is NOT the public contract source.
 - **Official Public Skills Repository (`agentic-test-skills`)**: The official public repository (`https://github.com/Menditect/agentic-test-skills`) where MTA skills, contracts (`mta_config.schema.json`), and patterns are published.
-- **Public Reference Rule**: In `agentic-test-tools`, you MUST ALWAYS refer to files, contracts, schemas, and skills from the public `agentic-test-skills` repository. NEVER refer to `mta-ai-assistant` in public documentation, contracts, schemas, release notes, or commit messages.
+- **Public Reference Rule**: In `agentic-test-workspace`, you MUST ALWAYS refer to files, contracts, schemas, and skills from the public `agentic-test-skills` repository. NEVER refer to `mta-ai-assistant` in public documentation, contracts, schemas, release notes, or commit messages.
 - **Template Release Version**: Governed exclusively by the user when publishing. Applies ONLY to `package.json`, `RELEASES.md`, `releases/`, and git tags.
-- **mta_config Contract Version**: SSOT is `agentic-test-skills` (`references/mta_config.schema.json`). NEVER bump or modify `mta_config` version when releasing `agentic-test-tools`. It must strictly match `agentic-test-skills`.
+- **mta_config Contract Version**: SSOT is `agentic-test-skills` (`references/mta_config.schema.json`). NEVER bump or modify `mta_config` version when releasing `agentic-test-workspace`. It must strictly match `agentic-test-skills`.
 
 ## Cloned Repository Immutability Rule (Tools Isolation)
-- When running `npm run setup` (or updating/syncing), `agentic-test-tools` acts purely as an external tools engine.
-- NEVER write, modify, or generate files (such as `mta_config.json`, `.env`, modified agent directives, or workspace artifacts) inside the cloned `agentic-test-tools/` directory when configured for an external or parent workspace (`workspaceDir !== toolsRootDir`).
+- When running `npm run setup` (or updating/syncing), `agentic-test-workspace` acts purely as an external tools engine.
+- NEVER write, modify, or generate files (such as `mta_config.json`, `.env`, modified agent directives, or workspace artifacts) inside the cloned `agentic-test-workspace/` directory when configured for an external or parent workspace (`workspaceDir !== toolsRootDir`).
 - All workspace configuration, secrets, agent directives, skills, runners, and execution plans MUST be written exclusively to `workspaceDir` (e.g. parent workspace or Mendix project directory).
-- The `agentic-test-tools` git worktree must remain 100% clean so that upstream git pulls (`git pull origin main`) never encounter merge conflicts, local dirty state, or leaked environment secrets.
+- The `agentic-test-workspace` git worktree must remain 100% clean so that upstream git pulls (`git pull origin main`) never encounter merge conflicts, local dirty state, or leaked environment secrets.
 
 ## Upstream Skills & Tools Update Protocol
 - When asked to update `skills` or `mxcli` (or check for updates):

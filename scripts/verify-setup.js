@@ -347,7 +347,7 @@ function checkSecurityHygiene() {
       console.warn(`  [WARN] Cloned repository contains local workspace files (${dirtyFiles.join(', ')}).`);
       console.warn(`         To ensure clean git pulls, workspace configuration should live exclusively in ${config.workspace_dir}.`);
     } else {
-      console.log('  [PASS] Cloned agentic-test-tools repository is clean (tools isolation verified).');
+      console.log('  [PASS] Cloned agentic-test-workspace repository is clean (tools isolation verified).');
     }
   }
 }

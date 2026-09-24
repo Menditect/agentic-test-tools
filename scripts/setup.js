@@ -1396,7 +1396,7 @@ MTA_APP_INSTANCE_DEFAULT="${defaultInstanceName}"
   console.log('  "Read `mta_config.json` and `.env` in this workspace, and configure your MCP client settings to connect to the `mta` server (`mcp_endpoint`) and `mta_plugin` server (`plugin_mcp_url`) using their corresponding Bearer tokens."\n');
 
   console.log('For next steps and all npm verification, update, and synchronization options, see:');
-  console.log('  README.md in the agentic-test-tools folder or in https://github.com/Menditect/agentic-test-tools/blob/main/README.md\n');
+  console.log('  README.md in the agentic-test-workspace folder or in https://github.com/Menditect/agentic-test-workspace/blob/main/README.md\n');
 
   if (rl) rl.close();
 }

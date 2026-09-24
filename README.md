@@ -54,18 +54,18 @@ mkdir C:\projects\your-workspace
 #### 2. Clone the repository
 
 ```bash
-git  clone  https://github.com/Menditect/agentic-test-tools.git
+git  clone  https://github.com/Menditect/agentic-test-workspace.git
 ```
 
 
-#### 3. Go to agentic-test-tools directory
+#### 3. Go to agentic-test-workspace directory
 ```bash
- cd C:\projects\your-workspace\agentic-test-tools
+ cd C:\projects\your-workspace\agentic-test-workspace
 ```
 
 #### 4. Run the setup wizard
 
-In the directory where you cloned the repository (`agentic-test-tools`), run:
+In the directory where you cloned the repository (`agentic-test-workspace`), run:
 ```bash
 npm run setup
 ```
@@ -116,9 +116,9 @@ npm run update -- --force  # Force re-download/re-sync even if up to date
 # Verification & Diagnostics
 npm run verify             # Verify MCP connectivity, catalog, and agent directives
 
-# Running from Workspace Root (when agentic-test-tools is in a subdirectory)
-npm run --prefix ./agentic-test-tools update
-npm run --prefix ./agentic-test-tools verify
+# Running from Workspace Root (when agentic-test-workspace is in a subdirectory)
+npm run --prefix ./agentic-test-workspace update
+npm run --prefix ./agentic-test-workspace verify
 ```
 
 <!-- BEGIN_SHARED_MTA_CONFIG_CONTRACT -->
