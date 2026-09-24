@@ -4,6 +4,7 @@ This page lists all the releases of the Menditect Agent Workspace Template, with
 
 | Release Version | Date | Key Highlights / Release Message |
 | :--- | :--- | :--- |
+| [v1.8.0](releases/v1.8.0.md) | 2026-09-24 | renamed repo to agentic-test-workspace |
 | [v1.7.3](releases/v1.7.3.md) | 2026-09-24 | updated documentation and user workflow |
 | [v1.7.2](releases/v1.7.2.md) | 2026-09-24 | fixed error in mcp server verification |
 | [v1.7.1](releases/v1.7.1.md) | 2026-09-24 | Remove PowerShell scripts and improve documentation |
