@@ -1395,13 +1395,8 @@ MTA_APP_INSTANCE_DEFAULT="${defaultInstanceName}"
   console.log('Suggested prompt for your AI Agent:');
   console.log('  "Read `mta_config.json` and `.env` in this workspace, and configure your MCP client settings to connect to the `mta` server (`mcp_endpoint`) and `mta_plugin` server (`plugin_mcp_url`) using their corresponding Bearer tokens."\n');
 
-  const isExternalWs = path.resolve(workspaceDir) !== path.resolve(toolsRootDir);
-  const readmeRel = isExternalWs
-    ? path.relative(workspaceDir, path.join(toolsRootDir, 'README.md')).replace(/\\/g, '/')
-    : 'README.md';
-
-  console.log(`For all npm verification, update, and synchronization options, see:`);
-  console.log(`  ${readmeRel}\n`);
+  console.log('For next steps and all npm verification, update, and synchronization options, see:');
+  console.log('  README.md in the agentic-test-tools folder or in https://github.com/Menditect/agentic-test-tools/blob/main/README.md\n');
 
   if (rl) rl.close();
 }

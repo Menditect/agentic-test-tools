@@ -79,38 +79,26 @@ The interactive script handles the full configuration in a few steps:
 
 #### 5. Open the workspace in your AI IDE
 
-Open the selected workspace folder in your AI IDE (Cursor, Claude Code, GitHub Copilot, or Antigravity/Gemini). Your AI assistant is immediately ready to design, execute, and debug automated Mendix tests in MTA.
+Open the selected workspace folder in your AI IDE (Cursor, Claude Code, GitHub Copilot, or Antigravity/Gemini).  The MCP server configuration is **specific to your chosen AI assistant and IDE environment** (e.g., Cursor, VS Code, Claude Code, Cline, etc.).
 
-<details>
-<summary>Cursor</summary>
+To connect your agent to MTA and the MTA Plugin, you can choose between two approaches:
 
-- **Cursor** will automatically detect `.cursor/mcp.json`.
-- The `mta` and `mta_plugin` tools will be available in chat and composer.
-- Point Cursor to `AGENTS.md` for core testing guidelines.
-</details>
-<details>
-<summary>VS Code / GitHub Copilot / Cline</summary>
+##### Option 1: Agent Self-Configuration (Recommended)
+You can instruct your AI assistant to configure its own MCP server settings dynamically by using this prompt:
+```bash
+Read `mta_config.json` and `.env` in this workspace, and configure your MCP client settings to connect to the `mta` server (`mcp_endpoint`) and `mta_plugin` server (`plugin_mcp_url`) using their corresponding Bearer tokens.
+``` 
 
-- **VS Code** automatically loads MCP servers from `.vscode/mcp.json`.
-- **Copilot / Codex** follows directives in `.github/copilot-instructions.md`.
-</details>
-<details>
-<summary>Claude Code & Claude Desktop</summary>
+##### Option 2: Manual MCP Configuration
+Configure your assistant's MCP client using the connection details specified in `mta_config.json` and `.env`:
 
-- **Claude Code (CLI)**: Automatically loads `.claude/settings.json` and reads `CLAUDE.md`.
-- **Claude Desktop**: Copy the server definitions from `config/mcp-mxcli.json` (or `.vscode/mcp.json`) into your `claude_desktop_config.
-</details>
-<details>
-<summary>Antigravity / Gemini</summary>
+* **MTA Primitive Tools Server (`mta`):**
+  - **Endpoint / URL:** Value of `mcp_endpoint` (e.g. `https://mta-trial.mendixcloud.com/primitivetools/mcp`)
+  - **Headers:** `Authorization: Bearer <MTA_MCP_AUTH_HEADER>`
+* **MTA Runtime Plugin Server (`mta_plugin`):**
+  - **Endpoint / URL:** Value of `plugin_mcp_url` (e.g. `http://localhost:8081/plugin/mcp`)
+  - **Headers:** `Authorization: <PLUGIN_MCP_TOKEN>` *(if configured)*
 
-- Reads workspace rules in `GEMINI.md` and `AGENTS.md`.
-</details>
-
-> [!TIP]
-> **Suggested prompt for your AI Agent:**
-> ```text
-> Read `mta_config.json` and `.env` in this workspace, and configure your MCP client settings to connect to the `mta` server (`mcp_endpoint`) and `mta_plugin` server (`plugin_mcp_url`) using their corresponding Bearer tokens.
-> ```
 
 ## Synchronization & updates
 
