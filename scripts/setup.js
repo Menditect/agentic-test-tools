@@ -1358,32 +1358,61 @@ MTA_APP_INSTANCE_DEFAULT="${defaultInstanceName}"
     }
   }
 
-  // Display mta_config.json & Next Steps
+  // Configuration Summary & Next Steps
   const activeCfgPath = path.join(workspaceDir, 'mta_config.json');
   console.log('\n================================================================================');
   console.log(` Configuration File: ${activeCfgPath}`);
   console.log('--------------------------------------------------------------------------------');
-  try {
-    if (fs.existsSync(activeCfgPath)) {
-      const displayedCfg = JSON.parse(fs.readFileSync(activeCfgPath, 'utf8'));
-      console.log(JSON.stringify(displayedCfg, null, 2));
-    }
-  } catch (e) {}
-  console.log('--------------------------------------------------------------------------------');
-  console.log(' You can inspect or manually edit "mta_config.json" at any time.');
-  console.log(' To reconfigure or update settings in the future, simply re-run "npm run setup".');
+  console.log(' This configuration file has been generated for your workspace.');
+  console.log(' You can inspect or manually edit "mta_config.json" at any time,');
+  console.log(' or simply re-run "npm run setup" whenever your settings change.');
   console.log('================================================================================\n');
+
+  const showCfg = await ask('Would you like to view the contents of mta_config.json now? (y/n)', 'n');
+  if (showCfg.toLowerCase().startsWith('y')) {
+    console.log('\n--- mta_config.json ---');
+    try {
+      if (fs.existsSync(activeCfgPath)) {
+        const displayedCfg = JSON.parse(fs.readFileSync(activeCfgPath, 'utf8'));
+        console.log(JSON.stringify(displayedCfg, null, 2));
+      }
+    } catch (e) {}
+    console.log('-----------------------\n');
+  }
 
   console.log('Next Steps: Open the workspace in your AI Agent / Editor:');
   console.log(`  - Cursor:               Open "${workspaceDir}" (MCP servers connect automatically)`);
   console.log(`  - VS Code / Copilot:    Open "${workspaceDir}" (tools load from .vscode/mcp.json)`);
   console.log(`  - Claude Code:          Run "claude" in "${workspaceDir}" (reads CLAUDE.md & .claude/settings.json)`);
   console.log(`  - Antigravity / Gemini: Open "${workspaceDir}" (reads GEMINI.md & AGENTS.md)`);
-  console.log('\nTo verify MCP connectivity anytime:');
-  console.log('  npm run verify');
+
+  const isExternalWs = path.resolve(workspaceDir) !== path.resolve(toolsRootDir);
+  const relPrefix = isExternalWs ? path.relative(workspaceDir, toolsRootDir).replace(/\\/g, '/') : null;
+  const prefixCmd = relPrefix ? `npm run --prefix ${relPrefix.startsWith('.') ? relPrefix : './' + relPrefix}` : 'npm run';
+
+  console.log('\n================================================================================');
+  console.log(' Workspace Commands & Parameterization Options:');
+  console.log('--------------------------------------------------------------------------------');
+  console.log(' Verification & Diagnostics:');
+  console.log(`  ${prefixCmd} verify               Check MCP connectivity, catalog, and agent directives`);
   console.log('  (Make sure your app under test is running when verifying the MCP connection).\n');
-  console.log('To update skills and mxcli binaries in the future:');
-  console.log('  npm run update\n');
+  console.log(' Synchronization & Updates:');
+  console.log(`  ${prefixCmd} update               Interactively update all components (skills + mxcli)`);
+  console.log(`  ${prefixCmd} update:skills        Update Menditect MTA testing skills only`);
+  console.log(`  ${prefixCmd} update:mxcli         Update mxcli binary & AI scaffolding only`);
+  console.log(`  ${prefixCmd} update:check         Dry-run version inspection without downloading`);
+  console.log(`  ${prefixCmd} update -- --yes      Non-interactive update (auto-approve all available updates)`);
+  console.log(`  ${prefixCmd} update -- --force    Force re-download/re-sync even if up to date`);
+
+  if (isExternalWs) {
+    console.log('\n Running from Workspace Root:');
+    console.log(`  Because agentic-test-tools is in "${toolsRootDir}", you can execute commands`);
+    console.log(`  directly from your workspace root (${workspaceDir}) using:`);
+    console.log(`    ${prefixCmd} <command>`);
+    console.log(`  Or navigate to the tools folder:`);
+    console.log(`    cd ${relPrefix || toolsRootDir} && npm run <command>`);
+  }
+  console.log('================================================================================\n');
   if (rl) rl.close();
 }
 

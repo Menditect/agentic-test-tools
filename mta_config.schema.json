@@ -81,7 +81,7 @@
     },
     "tracefile_base_url": {
       "type": "string",
-      "description": "Base URL used to retrieve Playwright trace files by FileUUID (e.g. 'http://localhost:8081/rest/private/tracefile?fileUUID=' or derived from mta_base_url)."
+      "description": "Base URL used to retrieve Playwright trace files by FileUUID (e.g. 'https://[mta-or-runtime-domain]/rest/private/tracefile?fileUUID=' or derived from mta_base_url)."
     },
     "app_instances": {
       "type": "array",

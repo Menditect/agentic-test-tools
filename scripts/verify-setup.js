@@ -275,6 +275,12 @@ function checkTokenPreflight(mode) {
       console.log('[INFO] No identification token for a service account configured in .env or MTA_MCP_AUTH_HEADER (optional for free exploratory testing).');
     } else {
       console.log('[INFO] Identification token for a service account is configured.');
+      const rawToken = hasToken.replace(/^Bearer\s+/i, '').trim();
+      if (rawToken.length < 28) {
+        console.warn(`  [WARN] Configured MTA token is shorter than 28 characters (${rawToken.length} chars: "${rawToken}").`);
+        console.warn('         MTA Cloud service account tokens are long tokens generated in MTA Service Account Manager.');
+        console.warn('         If you do not have an MTA license/token, leave MTA_MCP_AUTH_HEADER empty in .env to use free exploratory testing.');
+      }
     }
   } else if (mode === 'plugin') {
     const hasToken = process.env.PLUGIN_MCP_TOKEN || (config.plugin_mcp_token && config.plugin_mcp_token.trim());
@@ -539,6 +545,8 @@ function verifyMode(mode) {
         clearTimeout(timeout);
         const errMsg = res.error.message || '';
         const isOffline = errMsg.includes('offline') || errMsg.includes('ECONNREFUSED') || errMsg.includes('restarting');
+        const isMtaAuthError = mode === 'mta' && (errMsg.includes('MCP_server_authorize_user') || errMsg.includes('substring($TokenWithPrefix') || errMsg.includes('Authentication failed') || errMsg.includes('401') || errMsg.includes('403'));
+
         if (mode === 'plugin' && isOffline) {
           console.log(`  [NOTICE] Plugin MCP Server is offline (Mendix app is not running locally).`);
           console.log(`           Local test execution will be available when your app is running in Studio Pro.`);
@@ -548,6 +556,13 @@ function verifyMode(mode) {
           console.warn(`  [WARN] Studio Pro MCP is offline (Studio Pro is not running on port 7782).`);
           proc.kill();
           resolve({ success: false, offline: true, message: errMsg });
+        } else if (isMtaAuthError) {
+          console.error(`  [FAIL] MTA MCP Server Authentication Error:`);
+          console.error(`         The MTA server rejected the identification token for a service account.`);
+          console.error(`         - If you have an MTA Service Account token, verify MTA_MCP_AUTH_HEADER in .env.`);
+          console.error(`         - If you do not have an MTA license/token, leave MTA_MCP_AUTH_HEADER empty in .env to use free exploratory testing.`);
+          proc.kill();
+          resolve({ success: false, offline: false, message: errMsg });
         } else {
           console.error(`  [FAIL] ${mode} MCP Server returned an error:`, errMsg);
           proc.kill();

@@ -262,7 +262,10 @@ async function makeRequest(payloadString, requestId, retryCount = 0) {
       sessionId = null;
       if (requestId !== null) {
         let errorMsg = `HTTP ${res.statusCode} ${res.statusMessage || ''}: ${res.body.trim() || 'Internal Server Error'}`;
-        if (res.statusCode === 401 || res.statusCode === 403) {
+        const isMtaAuthError = mode === 'mta' && (res.statusCode === 401 || res.statusCode === 403 || res.body.includes('MCP_server_authorize_user') || res.body.includes('substring($TokenWithPrefix'));
+        if (isMtaAuthError) {
+          errorMsg = `HTTP ${res.statusCode} Authentication failed: The MTA server rejected the identification token for a service account. Please verify MTA_MCP_AUTH_HEADER in .env (or leave empty if using free exploratory mode).`;
+        } else if (res.statusCode === 401 || res.statusCode === 403) {
           const tokenLabel = mode === 'mta' ? 'identification token for a service account' : `${mode.toUpperCase()} Bearer token`;
           errorMsg = `HTTP ${res.statusCode} ${res.statusMessage || ''}: Authentication failed. Please verify your ${tokenLabel} in .env or mta_config.json. ${res.body.trim()}`;
         }
