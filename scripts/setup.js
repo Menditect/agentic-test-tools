@@ -28,9 +28,15 @@ function ask(question, defaultVal) {
     if (activeRl.closed) {
       return resolve(defaultVal !== undefined ? String(defaultVal) : '');
     }
-    const promptStr = defaultVal !== undefined && defaultVal !== '' ? `${question} [${defaultVal}]: ` : `${question}: `;
+    const hasDefault = defaultVal !== undefined && defaultVal !== '';
+    const promptStr = hasDefault ? `${question} [${defaultVal}]: ` : `${question}: `;
     activeRl.question(promptStr, answer => {
-      resolve(answer.trim() || (defaultVal !== undefined ? String(defaultVal) : ''));
+      const trimmed = answer.trim();
+      const chosen = trimmed || (hasDefault ? String(defaultVal) : '');
+      if (!trimmed && hasDefault) {
+        console.log(`  -> Selected: ${chosen}`);
+      }
+      resolve(chosen);
     });
   });
 }
@@ -1384,35 +1390,16 @@ MTA_APP_INSTANCE_DEFAULT="${defaultInstanceName}"
   console.log(`  - Cursor:               Open "${workspaceDir}" (MCP servers connect automatically)`);
   console.log(`  - VS Code / Copilot:    Open "${workspaceDir}" (tools load from .vscode/mcp.json)`);
   console.log(`  - Claude Code:          Run "claude" in "${workspaceDir}" (reads CLAUDE.md & .claude/settings.json)`);
-  console.log(`  - Antigravity / Gemini: Open "${workspaceDir}" (reads GEMINI.md & AGENTS.md)`);
+  console.log(`  - Antigravity / Gemini: Open "${workspaceDir}" (reads GEMINI.md & AGENTS.md)\n`);
 
   const isExternalWs = path.resolve(workspaceDir) !== path.resolve(toolsRootDir);
-  const relPrefix = isExternalWs ? path.relative(workspaceDir, toolsRootDir).replace(/\\/g, '/') : null;
-  const prefixCmd = relPrefix ? `npm run --prefix ${relPrefix.startsWith('.') ? relPrefix : './' + relPrefix}` : 'npm run';
+  const readmeRel = isExternalWs
+    ? path.relative(workspaceDir, path.join(toolsRootDir, 'README.md')).replace(/\\/g, '/')
+    : 'README.md';
 
-  console.log('\n================================================================================');
-  console.log(' Workspace Commands & Parameterization Options:');
-  console.log('--------------------------------------------------------------------------------');
-  console.log(' Verification & Diagnostics:');
-  console.log(`  ${prefixCmd} verify               Check MCP connectivity, catalog, and agent directives`);
-  console.log('  (Make sure your app under test is running when verifying the MCP connection).\n');
-  console.log(' Synchronization & Updates:');
-  console.log(`  ${prefixCmd} update               Interactively update all components (skills + mxcli)`);
-  console.log(`  ${prefixCmd} update:skills        Update Menditect MTA testing skills only`);
-  console.log(`  ${prefixCmd} update:mxcli         Update mxcli binary & AI scaffolding only`);
-  console.log(`  ${prefixCmd} update:check         Dry-run version inspection without downloading`);
-  console.log(`  ${prefixCmd} update -- --yes      Non-interactive update (auto-approve all available updates)`);
-  console.log(`  ${prefixCmd} update -- --force    Force re-download/re-sync even if up to date`);
+  console.log(`For all npm verification, update, and synchronization options, see:`);
+  console.log(`  ${readmeRel}\n`);
 
-  if (isExternalWs) {
-    console.log('\n Running from Workspace Root:');
-    console.log(`  Because agentic-test-tools is in "${toolsRootDir}", you can execute commands`);
-    console.log(`  directly from your workspace root (${workspaceDir}) using:`);
-    console.log(`    ${prefixCmd} <command>`);
-    console.log(`  Or navigate to the tools folder:`);
-    console.log(`    cd ${relPrefix || toolsRootDir} && npm run <command>`);
-  }
-  console.log('================================================================================\n');
   if (rl) rl.close();
 }
 
