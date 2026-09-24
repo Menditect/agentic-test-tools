@@ -106,6 +106,12 @@ Open the selected workspace folder in your AI IDE (Cursor, Claude Code, GitHub C
 - Reads workspace rules in `GEMINI.md` and `AGENTS.md`.
 </details>
 
+> [!TIP]
+> **Suggested prompt for your AI Agent:**
+> ```text
+> Read `mta_config.json` and `.env` in this workspace, and configure your MCP client settings to connect to the `mta` server (`mcp_endpoint`) and `mta_plugin` server (`plugin_mcp_url`) using their corresponding Bearer tokens.
+> ```
+
 ## Synchronization & updates
 
 The workspace includes a version inspection mechanism that queries GitHub releases (`mendixlabs/mxcli`) and repository skill frontmatters (`Menditect/agentic-test-skills`) to compare local versions against remote versions before prompting the user to confirm:

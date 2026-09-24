@@ -1392,6 +1392,9 @@ MTA_APP_INSTANCE_DEFAULT="${defaultInstanceName}"
   console.log(`  - Claude Code:          Run "claude" in "${workspaceDir}" (reads CLAUDE.md & .claude/settings.json)`);
   console.log(`  - Antigravity / Gemini: Open "${workspaceDir}" (reads GEMINI.md & AGENTS.md)\n`);
 
+  console.log('Suggested prompt for your AI Agent:');
+  console.log('  "Read `mta_config.json` and `.env` in this workspace, and configure your MCP client settings to connect to the `mta` server (`mcp_endpoint`) and `mta_plugin` server (`plugin_mcp_url`) using their corresponding Bearer tokens."\n');
+
   const isExternalWs = path.resolve(workspaceDir) !== path.resolve(toolsRootDir);
   const readmeRel = isExternalWs
     ? path.relative(workspaceDir, path.join(toolsRootDir, 'README.md')).replace(/\\/g, '/')
