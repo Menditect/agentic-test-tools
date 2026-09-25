@@ -162,10 +162,6 @@ function formatAuthHeader(token) {
   if (/^bearer\s+/i.test(cleanToken)) {
     cleanToken = cleanToken.replace(/^bearer\s+/i, '');
   }
-  // Ensure token prefix has a single trailing space if it starts with menditect_mta_identification_token
-  if (cleanToken.startsWith('menditect_mta_identification_token') && !cleanToken.startsWith('menditect_mta_identification_token ')) {
-    cleanToken = cleanToken.replace('menditect_mta_identification_token', 'menditect_mta_identification_token ');
-  }
   return `Bearer ${cleanToken}`;
 }
 

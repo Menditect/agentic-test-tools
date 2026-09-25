@@ -35,24 +35,40 @@ function loadEnvFile(filePath, overwrite = true) {
 }
 
 function findCandidateDirs() {
-  const dirs = new Set();
+  const dirs = [];
   
-  if (process.env.MTA_CONFIG_PATH) {
-    dirs.add(path.dirname(process.env.MTA_CONFIG_PATH));
-  }
+  // 1. Tool repo directory (lowest priority)
+  dirs.push(__dirname);
+  dirs.push(path.join(__dirname, '..'));
   
+  // 2. Ancestor working directories
   let curr = process.cwd();
+  const parents = [];
   for (let i = 0; i < 4; i++) {
-    dirs.add(curr);
+    parents.unshift(curr);
     const parent = path.dirname(curr);
     if (parent === curr) break;
     curr = parent;
   }
+  dirs.push(...parents);
   
-  dirs.add(__dirname);
-  dirs.add(path.join(__dirname, '..'));
+  // 3. Explicit MTA_CONFIG_PATH directory (highest priority)
+  if (process.env.MTA_CONFIG_PATH) {
+    dirs.push(path.dirname(process.env.MTA_CONFIG_PATH));
+  }
   
-  return Array.from(dirs).filter(d => fs.existsSync(d));
+  // Deduplicate preserving last occurrence (highest priority)
+  const uniqueDirs = [];
+  for (const d of dirs) {
+    const resolved = path.resolve(d);
+    const idx = uniqueDirs.findIndex(u => u === resolved);
+    if (idx !== -1) uniqueDirs.splice(idx, 1);
+    if (fs.existsSync(resolved)) {
+      uniqueDirs.push(resolved);
+    }
+  }
+  
+  return uniqueDirs;
 }
 
 let config = {};
@@ -63,8 +79,8 @@ function refreshConfigAndEnv() {
   const candidateDirs = findCandidateDirs();
   
   for (const dir of candidateDirs) {
-    loadEnvFile(path.join(dir, '.env.local'), true);
     loadEnvFile(path.join(dir, '.env'), true);
+    loadEnvFile(path.join(dir, '.env.local'), true);
   }
   
   config = {};
@@ -175,9 +191,6 @@ function sendHttp(payloadString, customHeaders = {}) {
       let authVal = AUTH_HEADER.trim();
       if (!authVal.startsWith('Bearer ') && !authVal.startsWith('Basic ')) {
         authVal = `Bearer ${authVal}`;
-      }
-      if (authVal.startsWith('Bearer menditect_mta_identification_token') && !authVal.startsWith('Bearer menditect_mta_identification_token ')) {
-        authVal = authVal.replace('Bearer menditect_mta_identification_token', 'Bearer menditect_mta_identification_token ');
       }
       headers['Authorization'] = authVal;
     }
