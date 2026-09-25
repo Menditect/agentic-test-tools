@@ -1506,25 +1506,26 @@ MTA_APP_INSTANCE_DEFAULT="${defaultInstanceName}"
 }
 
 function runDirectivesOnly() {
-  const rootConfigPath = path.join(toolsRootDir, 'mta_config.json');
+  const candidateConfigPaths = [
+    process.env.MTA_CONFIG_PATH,
+    path.join(process.cwd(), 'mta_config.json'),
+    path.join(toolsRootDir, 'mta_config.json')
+  ].filter(Boolean);
+
   let config = {};
-  if (fs.existsSync(rootConfigPath)) {
-    try {
-      config = JSON.parse(fs.readFileSync(rootConfigPath, 'utf8'));
-    } catch (e) {}
+  for (const cfgPath of candidateConfigPaths) {
+    if (fs.existsSync(cfgPath)) {
+      try {
+        config = JSON.parse(fs.readFileSync(cfgPath, 'utf8'));
+        break;
+      } catch (e) {}
+    }
   }
   if (normalizeConfigAliases) {
     config = normalizeConfigAliases(config);
   }
 
-  const workspaceDir = config.workspace_dir || toolsRootDir;
-  const wsConfigPath = path.join(workspaceDir, 'mta_config.json');
-  if (fs.existsSync(wsConfigPath) && path.resolve(wsConfigPath) !== path.resolve(rootConfigPath)) {
-    try {
-      const wsConfig = JSON.parse(fs.readFileSync(wsConfigPath, 'utf8'));
-      config = { ...config, ...(normalizeConfigAliases ? normalizeConfigAliases(wsConfig) : wsConfig) };
-    } catch (e) {}
-  }
+  const workspaceDir = config.workspace_dir || process.cwd();
 
   const appName = config.application_name || 'MyApp';
   const mtaUrl = config.mta_base_url || 'https://mta-trial.mendixcloud.com';
