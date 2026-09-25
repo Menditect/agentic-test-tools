@@ -578,7 +578,7 @@ function mergeJsonFile(filePath, updater) {
   fs.writeFileSync(filePath, JSON.stringify(updated, null, 2), 'utf8');
 }
 
-function generateIdeConfigs(workspaceDir, mcpSource, projectDir, mprPath, mtaUrl, appName, mtaAuthHeader, pluginToken, defaultInstanceToken) {
+function generateIdeConfigs(workspaceDir, mcpSource, projectDir, mprPath, mtaUrl, appName, mtaAuthHeader, pluginToken, defaultInstanceToken, pluginUrl) {
   const isToolsWorkspace = path.resolve(workspaceDir) === path.resolve(toolsRootDir);
   const isParentWorkspace = path.resolve(workspaceDir) === path.resolve(toolsRootDir, '..');
   const toolsDirName = path.basename(toolsRootDir);
@@ -692,9 +692,10 @@ function generateIdeConfigs(workspaceDir, mcpSource, projectDir, mprPath, mtaUrl
   };
   if (mtaAuthHeader) mtaEnv["MTA_MCP_AUTH_HEADER"] = mtaAuthHeader;
 
+  const effectivePluginUrl = pluginUrl || 'http://localhost:8081/plugin/mcp';
   const pluginEnv = {
     "MTA_CONFIG_PATH": path.join(workspaceDir, 'mta_config.json').replace(/\\/g, '/'),
-    "PLUGIN_MCP_URL": pluginUrl,
+    "PLUGIN_MCP_URL": effectivePluginUrl,
     "PLUGIN_MCP_TOKEN": pluginToken || "Bearer 1"
   };
 
@@ -1427,7 +1428,7 @@ MTA_APP_INSTANCE_DEFAULT="${defaultInstanceName}"
   }
 
   // 10. Generate & Merge IDE Configs
-  generateIdeConfigs(workspaceDir, mcpSource, projectDir, mprPath, mtaUrl, appName, mtaAuthHeader, pluginToken, defaultInstanceToken);
+  generateIdeConfigs(workspaceDir, mcpSource, projectDir, mprPath, mtaUrl, appName, mtaAuthHeader, pluginToken, defaultInstanceToken, pluginUrl);
 
   // 11. Deploy local mxcli runners into workspace
   deployMxcliWrappers(workspaceDir, mprPath);
