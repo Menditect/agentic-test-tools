@@ -678,36 +678,54 @@ function generateIdeConfigs(workspaceDir, mcpSource, projectDir, mprPath, mtaUrl
     };
   });
 
-  // 5. Global Antigravity mcp_config.json if existing
-  const antigravityConfigPath = path.join(process.env.USERPROFILE || process.env.HOME || '', '.gemini', 'antigravity', 'mcp_config.json');
-  if (fs.existsSync(antigravityConfigPath)) {
-    const globalProxyPath = path.join(toolsRootDir, 'scripts', 'mta-proxy.js').replace(/\\/g, '/');
-    const globalMcpServers = {
-      "MTA": {
-        "command": "node",
-        "args": [globalProxyPath, "mta"],
-        "env": {
-          "MTA_CONFIG_PATH": path.join(workspaceDir, 'mta_config.json').replace(/\\/g, '/')
-        }
-      },
-      "MTA_plugin": {
-        "command": "node",
-        "args": [globalProxyPath, "plugin"],
-        "env": {
-          "MTA_CONFIG_PATH": path.join(workspaceDir, 'mta_config.json').replace(/\\/g, '/')
-        }
-      }
-    };
-    mergeJsonFile(antigravityConfigPath, (existing) => {
-      return {
-        ...existing,
-        mcpServers: {
-          ...(existing.mcpServers || {}),
-          ...globalMcpServers
-        }
-      };
-    });
-    console.log(`Synchronized global Antigravity MCP configuration at ${antigravityConfigPath}`);
+  // 5. Global Antigravity mcp_config.json
+  const homeDir = process.env.USERPROFILE || process.env.HOME || '';
+  const antigravityConfigPaths = [
+    path.join(homeDir, '.gemini', 'config', 'mcp_config.json'),
+    path.join(homeDir, '.gemini', 'antigravity', 'mcp_config.json'),
+    path.join(homeDir, '.gemini', 'antigravity-ide', 'mcp_config.json')
+  ];
+
+  const globalProxyPath = path.join(toolsRootDir, 'scripts', 'mta-proxy.js').replace(/\\/g, '/');
+  const mtaEnv = {
+    "MTA_CONFIG_PATH": path.join(workspaceDir, 'mta_config.json').replace(/\\/g, '/')
+  };
+  if (mtaAuthHeader) mtaEnv["MTA_MCP_AUTH_HEADER"] = mtaAuthHeader;
+
+  const pluginEnv = {
+    "MTA_CONFIG_PATH": path.join(workspaceDir, 'mta_config.json').replace(/\\/g, '/'),
+    "PLUGIN_MCP_URL": pluginUrl,
+    "PLUGIN_MCP_TOKEN": pluginToken || "Bearer 1"
+  };
+
+  const globalMcpServers = {
+    "MTA": {
+      "command": "node",
+      "args": [globalProxyPath, "mta"],
+      "env": mtaEnv
+    },
+    "MTA_plugin": {
+      "command": "node",
+      "args": [globalProxyPath, "plugin"],
+      "env": pluginEnv
+    }
+  };
+
+  for (const cfgPath of antigravityConfigPaths) {
+    if (fs.existsSync(cfgPath) || cfgPath.includes(path.join('.gemini', 'config'))) {
+      const dir = path.dirname(cfgPath);
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+      mergeJsonFile(cfgPath, (existing) => {
+        return {
+          ...existing,
+          mcpServers: {
+            ...(existing.mcpServers || {}),
+            ...globalMcpServers
+          }
+        };
+      });
+      console.log(`Synchronized global Antigravity MCP configuration at ${cfgPath}`);
+    }
   }
 
   // 6. Global Claude Desktop config if existing
