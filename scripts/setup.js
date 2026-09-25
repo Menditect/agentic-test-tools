@@ -586,14 +586,26 @@ function generateIdeConfigs(workspaceDir, mcpSource, projectDir, mprPath, mtaUrl
       ? `\${workspaceFolder}/${toolsDirName}/scripts/mta-proxy.js`
       : path.join(toolsRootDir, 'scripts', 'mta-proxy.js').replace(/\\/g, '/'));
 
+  const mtaConfigEnvPath = isToolsWorkspace
+    ? '${workspaceFolder}/mta_config.json'
+    : (isParentWorkspace
+      ? '${workspaceFolder}/mta_config.json'
+      : path.join(workspaceDir, 'mta_config.json').replace(/\\/g, '/'));
+
   const newMcpServers = {
     "mta": {
       "command": "node",
-      "args": [proxyScriptPath, "mta"]
+      "args": [proxyScriptPath, "mta"],
+      "env": {
+        "MTA_CONFIG_PATH": mtaConfigEnvPath
+      }
     },
     "mta_plugin": {
       "command": "node",
-      "args": [proxyScriptPath, "plugin"]
+      "args": [proxyScriptPath, "plugin"],
+      "env": {
+        "MTA_CONFIG_PATH": mtaConfigEnvPath
+      }
     }
   };
 
@@ -662,6 +674,72 @@ function generateIdeConfigs(workspaceDir, mcpSource, projectDir, mprPath, mtaUrl
       }
     };
   });
+
+  // 5. Global Antigravity mcp_config.json if existing
+  const antigravityConfigPath = path.join(process.env.USERPROFILE || process.env.HOME || '', '.gemini', 'antigravity', 'mcp_config.json');
+  if (fs.existsSync(antigravityConfigPath)) {
+    const globalProxyPath = path.join(toolsRootDir, 'scripts', 'mta-proxy.js').replace(/\\/g, '/');
+    const globalMcpServers = {
+      "MTA": {
+        "command": "node",
+        "args": [globalProxyPath, "mta"],
+        "env": {
+          "MTA_CONFIG_PATH": path.join(workspaceDir, 'mta_config.json').replace(/\\/g, '/')
+        }
+      },
+      "MTA_plugin": {
+        "command": "node",
+        "args": [globalProxyPath, "plugin"],
+        "env": {
+          "MTA_CONFIG_PATH": path.join(workspaceDir, 'mta_config.json').replace(/\\/g, '/')
+        }
+      }
+    };
+    mergeJsonFile(antigravityConfigPath, (existing) => {
+      return {
+        ...existing,
+        mcpServers: {
+          ...(existing.mcpServers || {}),
+          ...globalMcpServers
+        }
+      };
+    });
+    console.log(`Synchronized global Antigravity MCP configuration at ${antigravityConfigPath}`);
+  }
+
+  // 6. Global Claude Desktop config if existing
+  const claudeDesktopPath = process.platform === 'win32'
+    ? path.join(process.env.APPDATA || '', 'Claude', 'claude_desktop_config.json')
+    : path.join(process.env.HOME || '', 'Library', 'Application Support', 'Claude', 'claude_desktop_config.json');
+  if (fs.existsSync(claudeDesktopPath)) {
+    const globalProxyPath = path.join(toolsRootDir, 'scripts', 'mta-proxy.js').replace(/\\/g, '/');
+    const globalMcpServers = {
+      "mta": {
+        "command": "node",
+        "args": [globalProxyPath, "mta"],
+        "env": {
+          "MTA_CONFIG_PATH": path.join(workspaceDir, 'mta_config.json').replace(/\\/g, '/')
+        }
+      },
+      "mta_plugin": {
+        "command": "node",
+        "args": [globalProxyPath, "plugin"],
+        "env": {
+          "MTA_CONFIG_PATH": path.join(workspaceDir, 'mta_config.json').replace(/\\/g, '/')
+        }
+      }
+    };
+    mergeJsonFile(claudeDesktopPath, (existing) => {
+      return {
+        ...existing,
+        mcpServers: {
+          ...(existing.mcpServers || {}),
+          ...globalMcpServers
+        }
+      };
+    });
+    console.log(`Synchronized global Claude Desktop configuration at ${claudeDesktopPath}`);
+  }
 
   console.log(`Generated and merged IDE configurations in ${workspaceDir}`);
 }
@@ -770,14 +848,16 @@ function getMenditectSetupBlock(appName, mtaUrl, skillsStyle, appInstances = [],
       '  2. Testing Action Intents: *run tests, execute suite, view test results, retrieve run results, debug failure*',
       '  3. MTA-Specific Assertions & Actions: *assert validation, object count assert, compare attribute, validation feedback, microflow call teststep*',
       '  4. Contextual Combinations: User asks to *verify, assert, mock, or test* in combination with: *microflow, nanoflow, entity, association, page, or widget*',
-      '- **ENVIRONMENT SSOT:** All environment configuration (Application name, MTA Base URL, Default App Instance, and ApplicationInstanceToken) must be dynamically loaded from `mta_config.json`.'
+      '- **ENVIRONMENT SSOT:** All environment configuration (Application name, MTA Base URL, Default App Instance, and ApplicationInstanceToken) must be dynamically loaded from `mta_config.json`.',
+      '- **MCP SUBPROCESS PROTECTION:** NEVER execute terminal commands (`Stop-Process`, `taskkill`, `kill`) against running MCP server/proxy processes (`mta-proxy.js`, `node.exe`). Terminating stdio child processes causes AI IDEs to permanently disable MCP servers for the active session. The proxy reloads `.env` dynamically on every request with zero restart needed.'
     ].join('\n');
   }
 
   return [
     '# Menditect Architecture Setup',
     `- **CRITICAL OPERATIONAL COMMAND:** Always execute tasks using the core rules defined in \`${skillsRelPath}\`.`,
-    '- **ENVIRONMENT SSOT:** All environment configuration (Application name, MTA Base URL, Default App Instance, and ApplicationInstanceToken) must be dynamically loaded from `mta_config.json`.'
+    '- **ENVIRONMENT SSOT:** All environment configuration (Application name, MTA Base URL, Default App Instance, and ApplicationInstanceToken) must be dynamically loaded from `mta_config.json`.',
+    '- **MCP SUBPROCESS PROTECTION:** NEVER execute terminal commands (`Stop-Process`, `taskkill`, `kill`) against running MCP server/proxy processes (`mta-proxy.js`, `node.exe`). Terminating stdio child processes causes AI IDEs to permanently disable MCP servers for the active session. The proxy reloads `.env` dynamically on every request with zero restart needed.'
   ].join('\n');
 }
 

@@ -311,7 +311,45 @@ function checkSecurityHygiene() {
     } catch (e) {}
   }
 
-  // 2. Check .env gitignore status
+  // 2. Check IDE MCP configuration files for hardcoded tokens or obsolete paths
+  const candidateMcpFiles = [
+    { label: 'Cursor .cursor/mcp.json', path: path.join(wsDir, '.cursor', 'mcp.json') },
+    { label: 'VS Code .vscode/mcp.json', path: path.join(wsDir, '.vscode', 'mcp.json') },
+    { label: 'Claude .claude/settings.json', path: path.join(wsDir, '.claude', 'settings.json') },
+    { label: 'Antigravity global mcp_config.json', path: path.join(process.env.USERPROFILE || process.env.HOME || '', '.gemini', 'antigravity', 'mcp_config.json') },
+    { label: 'Claude Desktop global config', path: process.platform === 'win32'
+        ? path.join(process.env.APPDATA || '', 'Claude', 'claude_desktop_config.json')
+        : path.join(process.env.HOME || '', 'Library', 'Application Support', 'Claude', 'claude_desktop_config.json') }
+  ];
+
+  let mcpHygienePassed = true;
+  for (const item of candidateMcpFiles) {
+    if (fs.existsSync(item.path)) {
+      try {
+        const raw = fs.readFileSync(item.path, 'utf8');
+        const parsed = JSON.parse(raw);
+        const servers = parsed.mcpServers || {};
+        for (const [srvName, srvDef] of Object.entries(servers)) {
+          const argsStr = JSON.stringify(srvDef.args || []);
+          if (/bearer\s+/i.test(argsStr)) {
+            mcpHygienePassed = false;
+            console.warn(`  [WARN] ${item.label} (${srvName}) contains hardcoded tokens in args!`);
+            console.warn(`         Tokens should be stored in .env. Run "npm run setup" to sanitize.`);
+          }
+          if (argsStr.includes('mta-ai-assistant')) {
+            mcpHygienePassed = false;
+            console.warn(`  [WARN] ${item.label} (${srvName}) references outdated proxy path 'mta-ai-assistant'.`);
+            console.warn(`         Run "npm run setup" to update proxy references.`);
+          }
+        }
+      } catch (e) {}
+    }
+  }
+  if (mcpHygienePassed) {
+    console.log('  [PASS] IDE MCP configurations contain no hardcoded tokens or outdated proxy paths.');
+  }
+
+  // 3. Check .env gitignore status
   const envPath = path.join(wsDir, '.env');
   const gitIgnorePath = path.join(wsDir, '.gitignore');
   if (fs.existsSync(envPath)) {
@@ -329,14 +367,14 @@ function checkSecurityHygiene() {
     }
   }
 
-  // 3. Check mta_config.json legacy tokens
+  // 4. Check mta_config.json legacy tokens
   if (rawConfig.mta_auth_header || rawConfig.plugin_mcp_token) {
     console.log('  [INFO] mta_config.json contains legacy auth tokens. Run "npm run setup" to decouple secrets to .env.');
   } else {
     console.log('  [PASS] mta_config.json contains no hardcoded authentication tokens.');
   }
 
-  // 4. Cloned Repository Immutability Rule: Verify toolsRootDir is not polluted
+  // 5. Cloned Repository Immutability Rule: Verify toolsRootDir is not polluted
   if (config.workspace_dir && path.resolve(config.workspace_dir) !== path.resolve(rootDir)) {
     const dirtyFiles = [];
     if (fs.existsSync(path.join(rootDir, 'mta_config.json'))) dirtyFiles.push('mta_config.json');

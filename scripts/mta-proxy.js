@@ -4,9 +4,13 @@ const readline = require('readline');
 const fs = require('fs');
 const path = require('path');
 
-const mode = (process.argv[2] || 'mta').toLowerCase();
+const rawArg = (process.argv[2] || 'mta').trim();
+const isUrlArg = rawArg.startsWith('http://') || rawArg.startsWith('https://');
+const mode = isUrlArg
+  ? (rawArg.includes('plugin') ? 'plugin' : (rawArg.includes('7782') ? 'studiopro' : 'mta'))
+  : rawArg.toLowerCase();
 
-function loadEnvFile(filePath) {
+function loadEnvFile(filePath, overwrite = true) {
   if (!filePath || !fs.existsSync(filePath)) return;
   try {
     const lines = fs.readFileSync(filePath, 'utf8').split(/\r?\n/);
@@ -20,7 +24,7 @@ function loadEnvFile(filePath) {
         if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
           val = val.slice(1, -1);
         }
-        if (!process.env[key]) {
+        if (overwrite || !process.env[key]) {
           process.env[key] = val;
         }
       }
@@ -30,49 +34,70 @@ function loadEnvFile(filePath) {
   }
 }
 
-// Load secrets from local .env or .env.local
-loadEnvFile(path.join(process.cwd(), '.env.local'));
-loadEnvFile(path.join(process.cwd(), '.env'));
-loadEnvFile(path.join(__dirname, '..', '.env.local'));
-loadEnvFile(path.join(__dirname, '..', '.env'));
-
-// Read configuration
-let config = {};
-try {
-  const possiblePaths = [
-    process.env.MTA_CONFIG_PATH,
-    path.join(__dirname, '..', 'mta_config.json'),
-    path.join(process.cwd(), 'mta_config.json')
-  ].filter(Boolean);
-
-  for (const p of possiblePaths) {
-    if (fs.existsSync(p)) {
-      config = JSON.parse(fs.readFileSync(p, 'utf8'));
-      break;
-    }
+function findCandidateDirs() {
+  const dirs = new Set();
+  
+  if (process.env.MTA_CONFIG_PATH) {
+    dirs.add(path.dirname(process.env.MTA_CONFIG_PATH));
   }
-} catch (e) {
-  // Ignore missing or malformed config
+  
+  let curr = process.cwd();
+  for (let i = 0; i < 4; i++) {
+    dirs.add(curr);
+    const parent = path.dirname(curr);
+    if (parent === curr) break;
+    curr = parent;
+  }
+  
+  dirs.add(__dirname);
+  dirs.add(path.join(__dirname, '..'));
+  
+  return Array.from(dirs).filter(d => fs.existsSync(d));
 }
 
+let config = {};
 let TARGET_URL = '';
 let AUTH_HEADER = null;
 
-if (mode === 'mta') {
-  const baseMtaUrl = config.mta_base_url || config.mta_url || config.mtaUrl || null;
-  const derivedMcp = baseMtaUrl ? baseMtaUrl.replace(/\/+$/, '') + '/primitivetools/mcp' : null;
-  TARGET_URL = config.mcp_endpoint || derivedMcp || process.env.MTA_MCP_ENDPOINT || 'https://mta-trial.mendixcloud.com/primitivetools/mcp';
-  AUTH_HEADER = process.env.MTA_MCP_AUTH_HEADER || (process.env.MTA_MCP_TOKEN ? `Bearer ${process.env.MTA_MCP_TOKEN}` : null) || config.mta_auth_header || null;
-  if (!AUTH_HEADER) {
-    console.error('Warning: No identification token for a service account configured in MTA_MCP_AUTH_HEADER, .env, or mta_config.json. Requests to MTA MCP will fail authentication.');
+function refreshConfigAndEnv() {
+  const candidateDirs = findCandidateDirs();
+  
+  for (const dir of candidateDirs) {
+    loadEnvFile(path.join(dir, '.env.local'), true);
+    loadEnvFile(path.join(dir, '.env'), true);
   }
-} else if (mode === 'plugin') {
-  TARGET_URL = config.plugin_mcp_url || config.plugin_url || config.pluginUrl || process.env.PLUGIN_MCP_URL || 'http://localhost:8081/plugin/mcp';
-  AUTH_HEADER = process.env.PLUGIN_MCP_TOKEN || config.plugin_mcp_token || config.plugin_token || config.pluginToken || null;
-} else if (mode === 'studiopro') {
-  TARGET_URL = config.studiopro_mcp_url || process.env.STUDIOPRO_MCP_URL || 'http://localhost:7782/mcp';
-  AUTH_HEADER = null;
+  
+  config = {};
+  const possibleConfigPaths = [
+    process.env.MTA_CONFIG_PATH,
+    ...candidateDirs.map(d => path.join(d, 'mta_config.json'))
+  ].filter(Boolean);
+
+  for (const p of possibleConfigPaths) {
+    if (fs.existsSync(p)) {
+      try {
+        config = JSON.parse(fs.readFileSync(p, 'utf8'));
+        break;
+      } catch (e) {}
+    }
+  }
+
+  if (mode === 'mta') {
+    const baseMtaUrl = config.mta_base_url || config.mta_url || config.mtaUrl || null;
+    const derivedMcp = baseMtaUrl ? baseMtaUrl.replace(/\/+$/, '') + '/primitivetools/mcp' : null;
+    TARGET_URL = config.mcp_endpoint || derivedMcp || process.env.MTA_MCP_ENDPOINT || (isUrlArg ? rawArg : null) || 'https://mta-trial.mendixcloud.com/primitivetools/mcp';
+    AUTH_HEADER = process.env.MTA_MCP_AUTH_HEADER || (process.env.MTA_MCP_TOKEN ? `Bearer ${process.env.MTA_MCP_TOKEN}` : null) || config.mta_auth_header || (process.argv[3] && !process.argv[3].startsWith('-') ? process.argv[3] : null) || null;
+  } else if (mode === 'plugin') {
+    TARGET_URL = config.plugin_mcp_url || config.plugin_url || config.pluginUrl || process.env.PLUGIN_MCP_URL || (isUrlArg ? rawArg : null) || 'http://localhost:8081/plugin/mcp';
+    AUTH_HEADER = process.env.PLUGIN_MCP_TOKEN || config.plugin_mcp_token || config.plugin_token || config.pluginToken || (process.argv[3] && !process.argv[3].startsWith('-') ? process.argv[3] : null) || null;
+  } else if (mode === 'studiopro') {
+    TARGET_URL = config.studiopro_mcp_url || process.env.STUDIOPRO_MCP_URL || (isUrlArg ? rawArg : null) || 'http://localhost:7782/mcp';
+    AUTH_HEADER = null;
+  }
 }
+
+// Initial configuration and environment evaluation
+refreshConfigAndEnv();
 
 let sessionId = null;
 let reinitPromise = null;
@@ -134,6 +159,7 @@ const rl = readline.createInterface({
 
 function sendHttp(payloadString, customHeaders = {}) {
   return new Promise((resolve, reject) => {
+    refreshConfigAndEnv();
     const payload = Buffer.from(payloadString, 'utf-8');
     const urlObj = new URL(TARGET_URL);
     const transport = urlObj.protocol === 'https:' ? https : http;
@@ -161,7 +187,7 @@ function sendHttp(payloadString, customHeaders = {}) {
       path: urlObj.pathname + urlObj.search,
       method: 'POST',
       headers: headers,
-      timeout: mode === 'mta' ? 25000 : 10000
+      timeout: mode === 'mta' ? 45000 : 10000
     };
 
     const req = transport.request(options, (res) => {
@@ -192,6 +218,7 @@ async function ensureUpstreamInitialized() {
   }
 
   reinitPromise = (async () => {
+    refreshConfigAndEnv();
     sessionId = null;
     const initPayload = JSON.stringify({
       jsonrpc: '2.0',
@@ -216,7 +243,7 @@ async function ensureUpstreamInitialized() {
         return true;
       }
     } catch (e) {
-      // Re-init failed (e.g. server still down)
+      // Re-init failed (e.g. server still offline)
     } finally {
       reinitPromise = null;
     }
@@ -233,6 +260,7 @@ function isSessionError(statusCode, body) {
 }
 
 async function makeRequest(payloadString, requestId, retryCount = 0) {
+  refreshConfigAndEnv();
   let parsedReq = null;
   try {
     parsedReq = JSON.parse(payloadString);
@@ -245,7 +273,7 @@ async function makeRequest(payloadString, requestId, retryCount = 0) {
     cachedInitParams = parsedReq.params;
   }
 
-  // If receiving a downstream request without an active session (e.g. tools/list during verify), initialize first
+  // If receiving a downstream request without an active session (e.g. tools/list during verify or tools/call), initialize first
   if (mode === 'mta' && parsedReq && parsedReq.method !== 'initialize' && !sessionId && retryCount === 0) {
     await ensureUpstreamInitialized();
   }
@@ -273,10 +301,10 @@ async function makeRequest(payloadString, requestId, retryCount = 0) {
         let errorMsg = `HTTP ${res.statusCode} ${res.statusMessage || ''}: ${res.body.trim() || 'Internal Server Error'}`;
         const isMtaAuthError = mode === 'mta' && (res.statusCode === 401 || res.statusCode === 403 || res.body.includes('MCP_server_authorize_user') || res.body.includes('substring($TokenWithPrefix'));
         if (isMtaAuthError) {
-          errorMsg = `HTTP ${res.statusCode} Authentication failed: The MTA server rejected the identification token for a service account. Please verify MTA_MCP_AUTH_HEADER in .env (or leave empty if using free exploratory mode).`;
+          errorMsg = `HTTP ${res.statusCode} Authentication failed: The MTA server rejected the identification token. Please verify MTA_MCP_AUTH_HEADER in your .env file. The proxy will pick up new tokens automatically on the next request without needing to restart the IDE.`;
         } else if (res.statusCode === 401 || res.statusCode === 403) {
           const tokenLabel = mode === 'mta' ? 'identification token for a service account' : `${mode.toUpperCase()} Bearer token`;
-          errorMsg = `HTTP ${res.statusCode} ${res.statusMessage || ''}: Authentication failed. Please verify your ${tokenLabel} in .env or mta_config.json. ${res.body.trim()}`;
+          errorMsg = `HTTP ${res.statusCode} ${res.statusMessage || ''}: Authentication failed. Please verify your ${tokenLabel} in .env or mta_config.json. The proxy will pick up updates automatically on the next request.`;
         }
         const errResponse = JSON.stringify({
           jsonrpc: '2.0',
