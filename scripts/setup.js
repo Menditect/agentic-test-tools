@@ -156,14 +156,21 @@ function isVersion1112OrHigher(versionStr) {
   return false;
 }
 
-function formatBearerToken(token) {
+function formatAuthHeader(token) {
   if (!token) return '';
-  const trimmed = token.trim();
-  if (!trimmed) return '';
-  if (/^bearer\s+/i.test(trimmed)) {
-    return `Bearer ${trimmed.replace(/^bearer\s+/i, '')}`;
+  let cleanToken = token.trim();
+  if (/^bearer\s+/i.test(cleanToken)) {
+    cleanToken = cleanToken.replace(/^bearer\s+/i, '');
   }
-  return `Bearer ${trimmed}`;
+  // Ensure token prefix has a single trailing space if it starts with menditect_mta_identification_token
+  if (cleanToken.startsWith('menditect_mta_identification_token') && !cleanToken.startsWith('menditect_mta_identification_token ')) {
+    cleanToken = cleanToken.replace('menditect_mta_identification_token', 'menditect_mta_identification_token ');
+  }
+  return `Bearer ${cleanToken}`;
+}
+
+function formatBearerToken(token) {
+  return formatAuthHeader(token);
 }
 
 function detectMendixModule(mendixDir) {
@@ -849,7 +856,8 @@ function getMenditectSetupBlock(appName, mtaUrl, skillsStyle, appInstances = [],
       '  3. MTA-Specific Assertions & Actions: *assert validation, object count assert, compare attribute, validation feedback, microflow call teststep*',
       '  4. Contextual Combinations: User asks to *verify, assert, mock, or test* in combination with: *microflow, nanoflow, entity, association, page, or widget*',
       '- **ENVIRONMENT SSOT:** All environment configuration (Application name, MTA Base URL, Default App Instance, and ApplicationInstanceToken) must be dynamically loaded from `mta_config.json`.',
-      '- **MCP SUBPROCESS PROTECTION:** NEVER execute terminal commands (`Stop-Process`, `taskkill`, `kill`) against running MCP server/proxy processes (`mta-proxy.js`, `node.exe`). Terminating stdio child processes causes AI IDEs to permanently disable MCP servers for the active session. The proxy reloads `.env` dynamically on every request with zero restart needed.'
+      '- **NATIVE MCP TOOL EXECUTION MANDATE:** You MUST ALWAYS use native IDE MCP tools (`mta`, `mta_plugin`, `execute-testcase`, `call_mcp_tool`) for all Menditect MTA cloud authoring and test execution tasks. Never create, generate, or execute ad-hoc Node/shell runner scripts (e.g. `build-*.js`, `run-*.js`, CLI bridges) or manual HTTP/curl calls to interact with MTA.',
+      '- **MCP SUBPROCESS PROTECTION & TOKEN ROTATION:** NEVER execute terminal commands (`Stop-Process`, `taskkill`, `kill`) against running MCP server/proxy processes (`mta-proxy.js`, `node.exe`, or custom proxies). Terminating stdio child processes causes AI IDEs (Antigravity, Cursor, Claude Desktop, VS Code) to permanently disable MCP servers for the active session. The built-in proxy reloads `.env` dynamically on every request with zero restart needed. If using a static or custom proxy that returns HTTP 401, prompt the user to update their credentials and use their IDE\'s "Restart MCP Server" / "Reload Window" UI action.'
     ].join('\n');
   }
 
@@ -857,7 +865,8 @@ function getMenditectSetupBlock(appName, mtaUrl, skillsStyle, appInstances = [],
     '# Menditect Architecture Setup',
     `- **CRITICAL OPERATIONAL COMMAND:** Always execute tasks using the core rules defined in \`${skillsRelPath}\`.`,
     '- **ENVIRONMENT SSOT:** All environment configuration (Application name, MTA Base URL, Default App Instance, and ApplicationInstanceToken) must be dynamically loaded from `mta_config.json`.',
-    '- **MCP SUBPROCESS PROTECTION:** NEVER execute terminal commands (`Stop-Process`, `taskkill`, `kill`) against running MCP server/proxy processes (`mta-proxy.js`, `node.exe`). Terminating stdio child processes causes AI IDEs to permanently disable MCP servers for the active session. The proxy reloads `.env` dynamically on every request with zero restart needed.'
+    '- **NATIVE MCP TOOL EXECUTION MANDATE:** You MUST ALWAYS use native IDE MCP tools (`mta`, `mta_plugin`, `execute-testcase`, `call_mcp_tool`) for all Menditect MTA cloud authoring and test execution tasks. Never create, generate, or execute ad-hoc Node/shell runner scripts (e.g. `build-*.js`, `run-*.js`, CLI bridges) or manual HTTP/curl calls to interact with MTA.',
+    '- **MCP SUBPROCESS PROTECTION & TOKEN ROTATION:** NEVER execute terminal commands (`Stop-Process`, `taskkill`, `kill`) against running MCP server/proxy processes (`mta-proxy.js`, `node.exe`, or custom proxies). Terminating stdio child processes causes AI IDEs (Antigravity, Cursor, Claude Desktop, VS Code) to permanently disable MCP servers for the active session. The built-in proxy reloads `.env` dynamically on every request with zero restart needed. If using a static or custom proxy that returns HTTP 401, prompt the user to update their credentials and use their IDE\'s "Restart MCP Server" / "Reload Window" UI action.'
   ].join('\n');
 }
 
@@ -1262,7 +1271,7 @@ async function run(options = {}) {
   console.log(' If you are using free exploratory testing without an MTA license, press Enter to skip.)');
   const defaultMtaToken = process.env.MTA_MCP_AUTH_HEADER || existingConfig.mta_auth_header || '';
   const rawMtaToken = await ask('Identification token for a service account (optional / press Enter to skip)', defaultMtaToken);
-  const mtaAuthHeader = rawMtaToken.trim() ? formatBearerToken(rawMtaToken) : '';
+  const mtaAuthHeader = rawMtaToken.trim() ? formatAuthHeader(rawMtaToken) : '';
   if (!mtaAuthHeader) {
     console.log('[INFO] Identification token for a service account skipped. Cloud authoring tools will remain inactive.');
   }
@@ -1531,6 +1540,7 @@ if (require.main === module) {
     buildProjectCatalog,
     updateAgentDirectives,
     getMenditectSetupBlock,
+    formatAuthHeader,
     formatBearerToken,
     findMpr,
     detectMendixVersion,

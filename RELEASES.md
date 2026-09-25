@@ -4,6 +4,8 @@ This page lists all the releases of the Menditect Agent Workspace Template, with
 
 | Release Version | Date | Key Highlights / Release Message |
 | :--- | :--- | :--- |
+| [v1.8.2](releases/v1.8.2.md) | 2026-09-25 | fixed error in authentication header and force native mcp execution |
+| [v1.8.1](releases/v1.8.1.md) | 2026-09-25 | dynamic configuration of mcp servers and tokens in mta_proxy |
 | [v1.8.0](releases/v1.8.0.md) | 2026-09-24 | renamed repo to agentic-test-workspace |
 | [v1.7.3](releases/v1.7.3.md) | 2026-09-24 | updated documentation and user workflow |
 | [v1.7.2](releases/v1.7.2.md) | 2026-09-24 | fixed error in mcp server verification |

@@ -172,9 +172,14 @@ function sendHttp(payloadString, customHeaders = {}) {
     };
 
     if (AUTH_HEADER) {
-      headers['Authorization'] = AUTH_HEADER.startsWith('Bearer ') || AUTH_HEADER.startsWith('Basic ')
-        ? AUTH_HEADER
-        : `Bearer ${AUTH_HEADER}`;
+      let authVal = AUTH_HEADER.trim();
+      if (!authVal.startsWith('Bearer ') && !authVal.startsWith('Basic ')) {
+        authVal = `Bearer ${authVal}`;
+      }
+      if (authVal.startsWith('Bearer menditect_mta_identification_token') && !authVal.startsWith('Bearer menditect_mta_identification_token ')) {
+        authVal = authVal.replace('Bearer menditect_mta_identification_token', 'Bearer menditect_mta_identification_token ');
+      }
+      headers['Authorization'] = authVal;
     }
 
     if (sessionId && !headers['mcp-session-id']) {
